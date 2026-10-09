@@ -4,7 +4,7 @@
 
 Extract complete pictures from photographed screens with automatic corner detection, perspective correction, and dark-content preservation. Includes a pretrained model, batch processing, review, manual cropping, and re-cropping the current image.
 
-**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.1.0**
+**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.1.1**
 
 [使用指南 / Usage](docs/USAGE.md) · [模型与评估 / Model & evaluation](docs/MODEL_CARD.md) · [继续训练 / Training](docs/TRAINING.md) · [发布指南 / Publishing](docs/PUBLISHING.md)
 
@@ -33,15 +33,33 @@ Download and extract a release or clone the repository, then run commands from t
 
 ### Windows
 
+安装 Python 3.10 或更新版本后，直接双击 **启动裁剪.cmd**。首次启动会在本目录创建 `.crop-env` 并下载依赖，完成后自动打开裁剪工具；后续启动直接复用环境。也可以在终端运行：
+
+Install Python 3.10 or later, then double-click **启动裁剪.cmd**. The first launch creates `.crop-env` here and downloads dependencies before opening the tool. Later launches reuse the environment. You can also run:
+
+```powershell
+.\启动裁剪.cmd
+```
+
+如果只想提前安装环境、不打开裁剪窗口，可双击 **安装环境.cmd**。首次安装需要联网；项目不会携带其他电脑的虚拟环境。
+
+To prepare the environment without opening the cropper, double-click **安装环境.cmd**. Initial setup needs internet access; the project does not ship another computer's virtual environment.
+
+如果电脑已有 `uv`，启动器会使用它安装依赖；否则使用 Python 自带的 `pip`，不需要额外安装 `uv`。
+
+The launcher uses `uv` if already available, otherwise Python's bundled `pip`. Installing `uv` is optional.
+
+手动安装方式仍可使用 / Manual setup is also available:
+
 ```powershell
 python -m venv .crop-env
 .\.crop-env\Scripts\python.exe -m pip install -r requirements.txt
 .\.crop-env\Scripts\python.exe screen_crop.py
 ```
 
-环境安装完成后，也可双击 **启动裁剪.cmd**，选择输入目录、输出目录及是否逐张审核。源照片不会被修改。
+启动后选择输入目录、输出目录及是否逐张审核。源照片不会被修改。直接运行 `screen_crop.py` 时，缺少依赖或 OpenCV 版本不兼容会自动切换到项目环境；双击 `.py` 文件还依赖 Windows 的 Python 文件关联，推荐使用 `.cmd` 入口。
 
-After setup, you can double-click **启动裁剪.cmd** to select source/output folders and review mode. Source photos are not modified.
+Select source/output folders and review mode after launch. Source photos are not modified. Direct execution of `screen_crop.py` detects missing/incompatible dependencies and switches to the project environment. Double-clicking `.py` additionally requires a Windows Python file association, so the `.cmd` launcher is recommended.
 
 ### macOS / Linux
 
@@ -172,7 +190,7 @@ python screen_crop.py --version
 当前版本输出示例 / Example output for the current version:
 
 ```text
-screen_crop.py 0.1.0
+screen_crop.py 0.1.1
 ```
 
 ### 窗口操作 / Window controls
@@ -208,11 +226,13 @@ Validation images were excluded from fitting but share some scenes/content with 
 
 ```text
 screen_crop.py                  Main application
+launch_crop.py                  Isolated environment setup and launcher
 train_screen_model.py           Training entry point
 screen_crop_model.json          Model metadata
 screen_crop_forest.xml.gz       Pretrained weights
 requirements.txt               Runtime dependencies
 启动裁剪.cmd                    Windows launcher
+安装环境.cmd                    Windows setup-only entry point
 docs/                          Bilingual guides and model card
 examples/                      Synthetic demo and label template
 tests/                         Regression tests

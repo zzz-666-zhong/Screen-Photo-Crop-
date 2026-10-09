@@ -9,6 +9,15 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import sys
+
+if __name__ == '__main__':
+    from launch_crop import runtime_problem, main as launch_main
+    problem = runtime_problem()
+    if problem is not None:
+        print(problem, flush=True)
+        raise SystemExit(launch_main(sys.argv[1:], script='train_screen_model.py'))
+
 import cv2
 import numpy as np
 import screen_crop as crop

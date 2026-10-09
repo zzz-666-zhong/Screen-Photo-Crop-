@@ -1,5 +1,12 @@
 # 更新记录 / Changelog
 
+## 0.1.1 — 2026-10-09
+
+- 修复精简目录没有 `.crop-env` 时启动脚本直接退出的问题。 / Fix the launcher exiting when a clean download has no `.crop-env`.
+- 首次启动自动建立项目独立环境并安装依赖，后续启动复用该环境。 / Automatically create the isolated environment and install dependencies on first launch; reuse it afterward.
+- 直接运行裁剪或训练脚本时，遇到缺少依赖或不兼容的 OpenCV 会切换到项目环境。 / Direct crop/training launches detect missing or incompatible dependencies and switch to the project environment.
+- 新增 `安装环境.cmd`，用于单独准备环境。 / Add a dedicated Windows environment-setup entry point.
+
 ## 0.1.0 — 2026-10-09
 
 首次整理为可公开发布的项目；本次版本号表示软件发布版本，模型元数据版本仍为 2。

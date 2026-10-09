@@ -11,11 +11,13 @@ LICENSE
 CHANGELOG.md
 CONTRIBUTING.md
 requirements.txt
+launch_crop.py
 screen_crop.py
 train_screen_model.py
 screen_crop_model.json
 screen_crop_forest.xml.gz
 启动裁剪.cmd
+安装环境.cmd
 使用说明.md
 docs/USAGE.md
 docs/TRAINING.md
@@ -27,4 +29,5 @@ examples/dataset.example.json
 scripts/build_release.py
 tests/test_crop.py
 tests/test_release.py
+tests/test_startup.py
 release-files.txt

@@ -29,13 +29,13 @@ python -m venv .crop-env
 .\.crop-env\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-本地已有可用 `.crop-env` 时可直接启动，无需重复安装。虚拟环境含有本机路径，复制整个文件夹到其他电脑后应重新建立环境。
+也可直接双击 `启动裁剪.cmd`，由启动器自动创建环境和安装依赖；双击 `安装环境.cmd` 可只准备环境。首次自动安装需要联网。本地已有可用 `.crop-env` 时会直接复用。虚拟环境含有本机路径，迁移到其他电脑后应重新建立环境。
 
-If `.crop-env` already works on this computer, launch directly. Virtual environments contain machine-specific paths and should be recreated after moving the project to another computer.
+You can also double-click `启动裁剪.cmd` to create the environment and install dependencies automatically, or `安装环境.cmd` to perform setup only. Initial setup needs internet access. A working `.crop-env` is reused. Environments contain machine-specific paths and should be recreated after moving to another computer.
 
-双击 **`启动裁剪.cmd`**，或运行：
+双击 **`启动裁剪.cmd`**，或运行以下命令。直接运行 `screen_crop.py` 遇到缺少依赖或不兼容版本时，也会准备并切换到本项目环境；双击 `.py` 本身需要 Windows 已配置 Python 文件关联。
 
-Double-click **`启动裁剪.cmd`**, or run:
+Double-click **`启动裁剪.cmd`**, or run the command below. Direct execution of `screen_crop.py` also prepares/switches to the project environment when dependencies are missing or incompatible. Double-clicking `.py` requires a configured Windows Python file association.
 
 ```powershell
 .\.crop-env\Scripts\python.exe screen_crop.py
@@ -184,7 +184,9 @@ Exit codes: `0` means no processing errors, `1` indicates image-processing error
 
 | 情况 / Situation | 说明与处理 / Explanation and action |
 |---|---|
-| OpenCV 缺少 `ml.RTrees_create` | 当前解释器的 OpenCV 不兼容。使用 `启动裁剪.cmd` 或 `.crop-env`，按依赖文件安装 OpenCV 4.x；自动批处理会提前检查该能力。 / The active OpenCV build is incompatible. Use the launcher or `.crop-env` and install the required OpenCV 4.x build; automatic batches check this capability before processing. |
+| OpenCV 缺少 `ml.RTrees_create` | 当前解释器的 OpenCV 不兼容。使用启动器自动准备 OpenCV 4.x 独立环境；直接运行脚本也会检测并切换环境。 / The active OpenCV build is incompatible. The launcher prepares an isolated OpenCV 4.x environment; direct execution also detects the issue and switches environments. |
+| 初次下载的目录没有 `.crop-env` / Fresh download has no `.crop-env` | 这是正常情况，双击 `启动裁剪.cmd` 即可创建并安装；只安装可用 `安装环境.cmd`。 / This is expected; the launcher creates/installs it, or use the setup-only entry point. |
+| 双击 `.py` 打开编辑器或选择程序 / Double-clicking `.py` opens an editor or app picker | Windows 尚未将 Python 文件关联到解释器。使用 `启动裁剪.cmd`，或在终端运行 `python screen_crop.py`。 / Windows has no interpreter association for Python files. Use the `.cmd` launcher or run `python screen_crop.py` in a terminal. |
 | 缺少模型或特征版本不一致 / Missing or mismatched model | 自动识别需要与代码匹配的两个模型文件；将同一版本的代码与模型放在一起。 / Automatic detection needs both model files matching the code; keep files from the same version together. |
 | 原有结果没有变化 / Existing crops do not change | 已有输出默认跳过，重新处理时使用 `--overwrite`。 / Existing outputs are skipped; use `--overwrite` to regenerate them. |
 | 深黑边缘、严重反光或目标太小 / Very dark edges, strong reflections, or tiny targets | 候选生成或边缘定位可能失败，使用 `--review`、`--manual` 或失败补裁。 / Proposal generation or edge localization may fail; review, select corners manually, or retry failures. |

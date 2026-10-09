@@ -11,6 +11,13 @@ import shutil
 import sys
 from pathlib import Path
 
+if __name__ == "__main__":
+    from launch_crop import runtime_problem, main as launch_main
+    startup_problem = runtime_problem()
+    if startup_problem is not None:
+        print(startup_problem, flush=True)
+        raise SystemExit(launch_main(sys.argv[1:]))
+
 try:
     import cv2
     import numpy as np
@@ -21,7 +28,7 @@ except ImportError as exc:
     ) from exc
 
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 SUCCESS_FOLDER = "裁剪成功"
