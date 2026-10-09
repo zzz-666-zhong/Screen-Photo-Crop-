@@ -1,0 +1,26 @@
+[
+  {
+    "id": "train_001",
+    "image": "../data/photo_001.jpg",
+    "quad": [[120, 180], [820, 165], [845, 710], [105, 725]],
+    "split": "train"
+  },
+  {
+    "id": "train_002",
+    "image": "../data/photo_002.jpg",
+    "quad": [[160, 140], [760, 155], [780, 650], [150, 670]],
+    "split": "train"
+  },
+  {
+    "id": "train_003",
+    "image": "../data/photo_003.jpg",
+    "quad": [[210, 150], [590, 160], [615, 740], [190, 720]],
+    "split": "train"
+  },
+  {
+    "id": "holdout_001",
+    "image": "../data/photo_004.jpg",
+    "quad": [[180, 130], [790, 170], [760, 680], [165, 650]],
+    "split": "holdout"
+  }
+]

@@ -1,0 +1,14 @@
+sample_id,split,previous_iou,current_iou
+new_01,train,0.848703,0.949941
+new_02,train,0.973481,0.971143
+new_03,holdout,0.583015,0.902489
+new_04,train,0.971654,0.955616
+new_05,train,0.202945,0.960743
+new_06,holdout,0.971428,0.990018
+new_07,train,0.883854,0.989693
+new_08,train,0.019135,0.965991
+new_09,train,0.0,0.909759
+new_10,train,0.023862,0.988108
+new_11,holdout,0.577604,0.983096
+new_12,holdout,0.957051,0.981785
+new_13,train,0.080297,0.976864

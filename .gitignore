@@ -1,0 +1,52 @@
+# Python environments and caches
+__pycache__/
+*.py[cod]
+.crop-env/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Local images, datasets, training outputs, and crop results
+/原图/
+/结果*/
+/识别提升结果/
+/input/
+/output/
+/data/
+/datasets/
+/trained_model/
+/model_output/
+/dataset.json
+**/裁剪成功/
+**/裁剪失败/
+**/_debug/
+crop_report.csv
+manual_crop_report.csv
+*_cropped.png
+
+# Packaging and local checks
+/dist/
+/github-release/
+/build/
+/.runtime-check-*/
+/.release-check-*/
+/.test-tmp/
+*.tmp
+*.log
+
+# Editor, operating-system, and machine-specific settings
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+.env
+.env.*
+!.env.example
+.codex/
+.agents/
+
+# The pretrained screen_crop_forest.xml.gz is intentionally versioned.
