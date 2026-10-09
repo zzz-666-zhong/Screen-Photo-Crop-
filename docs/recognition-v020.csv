@@ -1,0 +1,17 @@
+sample_id,kind,seed,current_iou,current_pass,baseline_iou,baseline_pass
+color-41,color,41,0.981135,1,0.981135,1
+color-67,color,67,0.982764,1,0.982764,1
+square-41,square,41,0.976768,1,0.976768,1
+square-67,square,67,0.983936,1,0.983936,1
+gray-41,gray,41,0.980054,1,0.0,0
+gray-67,gray,67,0.981502,1,0.0,0
+gray-square-41,gray-square,41,0.975235,1,0.0,0
+gray-square-67,gray-square,67,0.973757,1,0.0,0
+dark-41,dark,41,0.990164,1,0.990164,1
+dark-67,dark,67,0.993651,1,0.993651,1
+blur-41,blur,41,0.982983,1,0.982983,1
+blur-67,blur,67,0.983872,1,0.983872,1
+small-41,small,41,0.937855,1,0.937855,1
+small-67,small,67,0.940632,1,0.940632,1
+low-contrast-41,low-contrast,41,0.982953,1,0.0,0
+low-contrast-67,low-contrast,67,0.982523,1,0.0,0

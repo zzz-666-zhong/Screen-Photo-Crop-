@@ -89,13 +89,13 @@ def build(root: Path, output: Path, overwrite: bool = False) -> Path:
                 relative = path.relative_to(root).as_posix()
                 payload = path.read_bytes()
                 records[relative] = {"bytes": len(payload), "sha256": hashlib.sha256(payload).hexdigest()}
-                info = zipfile.ZipInfo(f"{basename}/{relative}", date_time=(2026, 10, 9, 0, 0, 0))
+                info = zipfile.ZipInfo(f"{basename}/{relative}", date_time=(2026, 10, 10, 0, 0, 0))
                 info.create_system = 3
                 info.external_attr = 0o100644 << 16
                 # The forest is already gzip-compressed.
                 info.compress_type = zipfile.ZIP_STORED if path.suffix == ".gz" else zipfile.ZIP_DEFLATED
                 archive.writestr(info, payload)
-            info = zipfile.ZipInfo(f"{basename}/release-manifest.json", date_time=(2026, 10, 9, 0, 0, 0))
+            info = zipfile.ZipInfo(f"{basename}/release-manifest.json", date_time=(2026, 10, 10, 0, 0, 0))
             info.create_system = 3
             info.external_attr = 0o100644 << 16
             info.compress_type = zipfile.ZIP_DEFLATED

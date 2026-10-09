@@ -16,9 +16,9 @@ opencv-python>=4.8,<5
 Pillow>=10,<13
 ```
 
-文件夹选择窗口需要 Tkinter，手动选四角窗口需要支持桌面窗口的 OpenCV。请将主程序与两个模型文件放在同一目录，模型 `.xml.gz` 无需解压。
+统一工作台和文件夹选择窗口需要 Tkinter 与桌面环境。请将主程序与两个模型文件放在同一目录，模型 `.xml.gz` 无需解压。
 
-Folder dialogs require Tkinter, and manual corner selection requires an OpenCV build with desktop-window support. Keep the main script and both model files together. Do not decompress the `.xml.gz` model.
+The unified workspace and folder dialogs require Tkinter and a desktop session. Keep the main script and both model files together. Do not decompress the `.xml.gz` model.
 
 在项目目录打开 PowerShell。首次安装，或迁移到新电脑后，创建独立环境：
 
@@ -41,9 +41,9 @@ Double-click **`启动裁剪.cmd`**, or run the command below. Direct execution 
 .\.crop-env\Scripts\python.exe screen_crop.py
 ```
 
-无参数启动时，先选择是否补裁已有失败图片；开始新批次时，再选择原图文件夹、结果文件夹，以及是否逐张确认。自动处理结束后，如有失败图片，会询问是否立即手动补裁。
+无参数启动进入设置页：填写原图和结果目录，选择自动审核、手动四角或失败补裁，并选择完整图片或正方形 1:1。失败补裁使用上次结果总目录。批次完成后留在同一页面，点击返回设置可开始下一批。
 
-With no arguments, the app first asks whether to retry an existing failure folder. For a new batch, select the source folder, result folder, and whether to review each image. After automatic processing, it offers manual correction if failures remain.
+With no arguments, the startup page lets you choose folders, Review/Manual/Retry, and Full picture/Square 1:1. Retry uses the previous result root. Completion stays on the same page; Settings starts another batch.
 
 ## 2. 常用命令 / Common commands
 
@@ -95,20 +95,32 @@ Pass the result root containing `裁剪成功` and `裁剪失败`, not the failu
 
 Existing outputs are skipped by default. Add `--overwrite` when reviewing or replacing them, including with `--review` or `--retry-failed`.
 
-### 手动窗口操作 / Manual window controls
+### 正方形模式 / Square mode
 
-| 操作 / Action | 中文说明 | English description |
+启动页选择“正方形 · 1:1”，或在命令中加 `--square`。它适用于目标原本是正方形的照片：保留四角内的完整内容并校正为 1:1，不从中间截取方形。普通横图/竖图应保持完整图片模式；选错形状可能造成拉伸。审核、手动、失败补裁和自动批处理均支持此参数。
+
+Choose Square · 1:1 at startup, or add `--square`. This mode rectifies the complete four-corner region to 1:1 for originally square pictures, without taking a center crop. Use Full picture for landscape/portrait targets; choosing the wrong shape can stretch content. All processing modes support this option.
+
+```powershell
+python screen_crop.py "D:\拍屏照片" "D:\裁剪结果" --review --square
+python screen_crop.py "D:\拍屏照片" "D:\裁剪结果" --manual --square
+python screen_crop.py "D:\裁剪结果" --retry-failed --square
+```
+
+### 窗口操作 / Window controls
+
+| 操作 / Action | 中文 | English |
 |---|---|---|
-| 绿色框 / Green outline | 自动识别区域。未手动选点时按 Enter 进入裁剪预览。 | Proposed crop. Press Enter without selecting points to preview it. |
-| 左键 / Left click | 依次选择图片本身的左上、右上、右下、左下角。 | Select the picture's top-left, top-right, bottom-right, and bottom-left corners in order. |
-| Enter（选点窗口 / Corner window） | 确认四角并进入结果预览。 | Confirm four corners and open the result preview. |
-| 右键 / Right click | 撤销上一个点。 | Undo the last point. |
-| `R` 或 Re-crop（选点窗口 / Corner window） | 清空当前自动框与选点，重新手动选四角。 | Clear the proposal and selection to choose four corners manually. |
-| Esc 或关闭窗口 / Esc or close window | 跳过当前图片。 | Skip the current image. |
+| 四角 / Corners | 自动框直接生成右侧预览；手动点击四角后也自动预览。拖动角点调整。 | Automatic corners preview immediately; four manual points also preview automatically. Drag handles to adjust. |
+| Enter | 检查预览后按一次，保存当前图并进入下一张；未选四角时不保存。 | Press once after inspection to save and advance; incomplete selections cannot save. |
+| 重新裁剪 / Re-crop · R | 清空当前四角和预览，在同一张原图重新选点。 | Clear corners and preview, then reselect on the same original. |
+| 撤销 / Undo · 右键 / Right click · Backspace | 撤销一个点；重新选四角前不能保存旧预览。 | Undo one point; stale previews cannot be saved. |
+| 跳过 / Skip · Esc | 当前图片进入失败副本目录，继续下一张，不写入新裁剪。 | Copy the skipped source to failures and advance without writing a crop. |
+| 结束 / Stop · 关闭窗口 / Close | 停止本批，保留已经保存的结果；当前及剩余图片不导出失败副本。 | Stop the batch and retain saved results; current/remaining photos are not exported as failures. |
 
-审核、手动裁剪和失败补裁均先显示最终裁剪预览（含当前黑边/内缩设置），再由你决定保存。在预览中点击 **“重新裁剪 / Re-crop”** 或按 R，返回当前原图重新选四角，可反复操作；点击 **“保存并下一张 / Save & next”** 或按 Enter，才保存结果并进入下一张。点击跳过、按 Esc 或关闭预览均不会写入新结果，也不会覆盖已有输出。
+审核、手动和失败补裁使用同一工作台。自动批处理不弹出预览。已有输出默认跳过，重新审核时加 `--overwrite`。
 
-Review, manual, and retry modes show the final crop, including current trimming/inset settings, before saving. Click **Re-crop** or press R to return to the current original and reselect corners as often as needed. Click **Save & next** or press Enter to save and advance. Skip, Esc, or closing the preview writes no new crop and leaves any existing output unchanged.
+Review, manual, and retry modes use the same workspace. Automatic batches have no preview window. Existing outputs are skipped; add `--overwrite` to review them again.
 
 ## 3. 黑边处理与参数 / Black margins and options
 
@@ -133,6 +145,7 @@ When enabled, trimming removes consecutive outer rows/columns with at least 90% 
 | `--manual` | 关闭 / Off | 全部手动选四角。 / Manually select corners for every image. |
 | `--review` | 关闭 / Off | 逐张确认或修改自动框。 / Review or replace automatic corners. |
 | `--retry-failed` | 关闭 / Off | 递归手动处理结果目录下的失败副本。 / Recursively retry failure copies manually. |
+| `--square` | 关闭 / Off | 将原本正方形的目标完整透视校正为 1:1；裁边后仍保持 1:1。 / Rectify the full originally square target to 1:1, retained after optional trimming. |
 | `--recursive` | 关闭 / Off | 包含输入子目录并保留相对目录结构。 / Include input subfolders and preserve relative paths. |
 | `--no-trim-black` | 开启 / On | 保留内部暗色内容。 / Preserve dark content inside the crop. |
 | `--trim-black` | 关闭 / Off | 开启外围近黑行列清除。 / Enable near-black outer-row/column trimming. |
@@ -174,6 +187,7 @@ CSV reports use UTF-8 with BOM for Excel compatibility and contain `input`, `out
 | `ok` | 本次已保存，`detail` 通常为输出宽×高。 / Saved in this run; `detail` normally contains width × height. |
 | `existing` | 输出已存在，本次跳过。 / Output already exists and was skipped. |
 | `skipped` | 用户跳过。 / Skipped by the user. |
+| `cancelled` | 用户停止批次，剩余图片不处理；当前图不导出失败副本。 / User stopped the batch; remaining photos are untouched and the current photo is not copied to failures. |
 | `error` | 识别、读取或处理失败，原因记录在 `detail`。 / Detection, loading, or processing failed; see `detail`. |
 
 退出码：`0` 表示没有处理错误，`1` 表示批次存在图片处理错误，`2` 表示参数、路径或初始化等错误；用户跳过或已有输出不计为处理错误。
@@ -190,7 +204,7 @@ Exit codes: `0` means no processing errors, `1` indicates image-processing error
 | 缺少模型或特征版本不一致 / Missing or mismatched model | 自动识别需要与代码匹配的两个模型文件；将同一版本的代码与模型放在一起。 / Automatic detection needs both model files matching the code; keep files from the same version together. |
 | 原有结果没有变化 / Existing crops do not change | 已有输出默认跳过，重新处理时使用 `--overwrite`。 / Existing outputs are skipped; use `--overwrite` to regenerate them. |
 | 深黑边缘、严重反光或目标太小 / Very dark edges, strong reflections, or tiny targets | 候选生成或边缘定位可能失败，使用 `--review`、`--manual` 或失败补裁。 / Proposal generation or edge localization may fail; review, select corners manually, or retry failures. |
-| 灰度图片或几乎无彩色内容 / Grayscale or nearly colorless pictures | 当前候选过滤包含彩色像素比例要求，此类图片可能被排除；可手动裁剪。 / Candidate filtering requires some colored content, so these pictures may be rejected; use manual cropping. |
+| 灰度图片或几乎无彩色内容 / Grayscale or nearly colorless pictures | 已增加四边边缘和纹理证据，仍可能在真实复杂背景下失败；可手动裁剪。 / Four-border and texture evidence is supported, but complex real backgrounds may still fail; use manual cropping. |
 | 输出仍有模糊、反光、摩尔纹或标线 / Blur, glare, moiré, or marks remain | 本项目负责定位、裁剪和透视校正，不恢复被遮挡内容或原始屏幕像素，也不做去模糊、去水印或内容修复。 / The tool locates, crops, and rectifies pictures; it does not recover obscured content or original screen pixels, deblur, remove watermarks, or restore image content. |
 | 需要沿人物或物体轮廓抠图 / Need object cutouts | 当前处理完整矩形图片，不输出按物体轮廓分割的透明背景。 / The tool extracts full rectangular pictures, not object silhouettes with transparent backgrounds. |
 | 显示 `ok` 但裁错 / A crop is saved but incorrect | `ok` 只表示成功保存，不保证选中了目标区域；检查预览并人工调整。 / `ok` means the file was saved, not that the target was correct; inspect the result and adjust manually. |

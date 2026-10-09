@@ -28,7 +28,7 @@ except ImportError as exc:
     ) from exc
 
 
-__version__ = "0.1.1"
+__version__ = "0.2.0"
 
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 SUCCESS_FOLDER = "裁剪成功"
@@ -149,8 +149,7 @@ def quad_features(small, gray, saturation, texture, gradients, q):
     ins_gray = cv2.cvtColor(inside,cv2.COLOR_BGR2GRAY)
     ins_hsv = cv2.cvtColor(inside,cv2.COLOR_BGR2HSV)
     ins_color = (ins_hsv[:,:,1]>55)&(ins_hsv[:,:,2]>50)
-    if ins_color.mean() < .035:
-        return None
+    monochrome = ins_color.mean() < .035
     t = np.linspace(.10,.90,40,dtype=np.float32)
     outer=[]; inner=[]; gvals=[]; contrasts=[]; cover=[]
     distance = max(3., min(12., sides.min()*.035))
@@ -189,6 +188,13 @@ def quad_features(small, gray, saturation, texture, gradients, q):
         pts=a+t[:,None]*delta-normal*distance
         outer_tex.extend(cv2.remap(texture,pts[:,0].reshape(1,-1),pts[:,1].reshape(1,-1),cv2.INTER_LINEAR,borderMode=cv2.BORDER_REFLECT).ravel())
     it=float(np.mean(ins_tex));ot=float(np.mean(outer_tex))
+    # Grayscale/dim photos need texture and a supported boundary, rather than color.
+    # Flat UI panels and text-only fragments should not become monochrome photos.
+    if monochrome and (ins_gray.std() < 6 or
+                       np.percentile(ins_gray,90)-np.percentile(ins_gray,10) < 10 or
+                       min(cover) < .45 or min(contrasts) < .025 or
+                       it < max(1., ot*1.25)):
+        return None
     return np.float32([
         center,np.log(max(area,1e-6)),np.log(sides.max()/sides.min()),1-np.mean(angles),
         ins_color.mean(),np.mean((out_hsv[:,:,1]>55)&(out_hsv[:,:,2]>50)),
@@ -355,7 +361,7 @@ def load_scoring_forest(path, modified_ns):
     return forest
 
 
-def detect_screen(image: np.ndarray) -> np.ndarray | None:
+def detect_screen(image: np.ndarray, *, square: bool = False) -> np.ndarray | None:
     import json
     candidates=photo_candidates(image)
     if not candidates:return None
@@ -371,18 +377,47 @@ def detect_screen(image: np.ndarray) -> np.ndarray | None:
         raise ValueError('Missing screen_crop_forest.xml.gz. Extract all release files together.')
     forest=load_scoring_forest(str(forest_path),forest_path.stat().st_mtime_ns)
     scores=forest.predict(X.astype(np.float32))[1].ravel()
-    if float(scores.max()) < .4:
+    selected = select_candidate(candidates, scores, square=square)
+    if selected is None:
         return None
-    best=candidates[int(np.argmax(scores))][0]
+    best=candidates[selected][0]
     return refine_photo_edges(image,np.float32(best))
 
 
-def rectify(image: np.ndarray, corners: np.ndarray) -> np.ndarray:
+def select_candidate(candidates, scores, *, square=False):
+    """Keep the established color path; use strong monochrome evidence as fallback."""
+    scores=np.asarray(scores,dtype=float)
+    color=np.array([f[4] >= .035 for _,f in candidates])
+    eligible=(scores >= .4) & color
+    if not eligible.any():
+        # The original forest learned mostly colorful photos. For monochrome
+        # proposals the four-border/texture gate above supplies extra evidence.
+        eligible=(scores >= .24) & ~color
+    if not eligible.any():
+        return None
+    ranking=scores.copy()
+    if not np.any(eligible & color):
+        features=np.asarray([f for _,f in candidates])
+        ranking += .12*np.minimum(features[:,13],1.) + .08*features[:,14]
+        ranking += .04*np.clip(features[:,11],0,2) - .08*features[:,17]
+    if square:
+        # This is a soft prior: perspective can make a square appear rectangular.
+        for i,(q,_) in enumerate(candidates):
+            sides=np.linalg.norm(np.roll(q,-1,axis=0)-q,axis=1)
+            ratio=(sides[0]+sides[2])/max(1.,sides[1]+sides[3])
+            ranking[i] -= .10*min(1.5,abs(np.log(ratio)))
+    ranking[~eligible]=-np.inf
+    return int(np.argmax(ranking))
+
+
+def rectify(image: np.ndarray, corners: np.ndarray, *, square: bool = False) -> np.ndarray:
     tl, tr, br, bl = order_corners(corners)
     width = int(round(max(np.linalg.norm(tr - tl), np.linalg.norm(br - bl))))
     height = int(round(max(np.linalg.norm(bl - tl), np.linalg.norm(br - tr))))
     if min(width, height) < 8:
         raise ValueError("Selected image region is too small.")
+    if square:
+        width = height = max(width, height)
     target = np.float32([[0, 0], [width - 1, 0], [width - 1, height - 1], [0, height - 1]])
     matrix = cv2.getPerspectiveTransform(np.float32([tl, tr, br, bl]), target)
     return cv2.warpPerspective(image, matrix, (width, height), flags=cv2.INTER_CUBIC,
@@ -412,158 +447,18 @@ def finish_crop(image: np.ndarray, args: argparse.Namespace) -> np.ndarray:
     h, w = image.shape[:2]
     # A small inset removes edge interpolation and thin remnants of the bezel.
     dx, dy = round(w * args.inset), round(h * args.inset)
-    return image[dy:h - dy, dx:w - dx].copy()
-
-
-def choose_corners(image: np.ndarray, proposed: np.ndarray | None, title: str) -> np.ndarray | None:
-    scale = min(1.0, 1200 / image.shape[1], 760 / image.shape[0])
-    preview = cv2.resize(image, None, fx=scale, fy=scale)
-    selected = []
-    active_proposal = proposed
-    header_height = 104
-    window = "Screen crop - " + title.encode("ascii", "replace").decode("ascii")
-    cv2.namedWindow(window, cv2.WINDOW_AUTOSIZE)
-
-    def mouse(event, x, y, flags, userdata):
-        nonlocal active_proposal
-        if event == cv2.EVENT_LBUTTONDOWN and 8 <= x <= 208 and 70 <= y <= 98:
-            selected.clear()
-            active_proposal = None
-            return
-        y -= header_height
-        if not (0 <= x < preview.shape[1] and 0 <= y < preview.shape[0]):
-            return
-        if event == cv2.EVENT_LBUTTONDOWN and len(selected) < 4:
-            selected.append((x, y))
-        elif event == cv2.EVENT_RBUTTONDOWN and selected:
-            selected.pop()
-
-    cv2.setMouseCallback(window, mouse)
-    try:
-        while True:
-            canvas = preview.copy()
-            if active_proposal is not None and not selected:
-                polygon = np.round(active_proposal * scale).astype(np.int32)
-                cv2.polylines(canvas, [polygon], True, (0, 255, 0), 2)
-            for i, point in enumerate(selected):
-                cv2.circle(canvas, point, 5, (0, 255, 255), -1)
-                cv2.putText(canvas, str(i + 1), (point[0] + 7, point[1] - 7),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-            if len(selected) > 1:
-                cv2.polylines(canvas, [np.array(selected, np.int32)], len(selected) == 4, (0, 255, 255), 2)
-            canvas = cv2.copyMakeBorder(canvas, header_height, 0, 0, max(0, 680 - canvas.shape[1]),
-                                        cv2.BORDER_CONSTANT, value=(25, 25, 25))
-            cv2.putText(canvas, "Click 4 corners in order; Enter: preview; R: reset; Esc: skip",
-                        (8, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.46, (255, 255, 255), 1)
-            cv2.putText(canvas, "Right click: undo. Choose the picture itself, inside the screen.",
-                        (8, 44), cv2.FONT_HERSHEY_SIMPLEX, 0.46, (255, 255, 255), 1)
-            cv2.rectangle(canvas, (8, 70), (208, 98), (75, 75, 75), -1)
-            cv2.putText(canvas, "Re-crop (R)", (24, 90), cv2.FONT_HERSHEY_SIMPLEX,
-                        0.55, (255, 255, 255), 1)
-            cv2.imshow(window, canvas)
-            key = cv2.waitKey(30) & 0xFF
-            if key == 27 or cv2.getWindowProperty(window, cv2.WND_PROP_VISIBLE) < 1:
-                return None
-            if key in (ord("r"), ord("R")):
-                selected.clear()
-                active_proposal = None
-            if key in (10, 13):
-                if len(selected) == 4:
-                    try:
-                        return order_corners(np.float32(selected) / scale)
-                    except ValueError:
-                        selected.clear()
-                elif not selected and active_proposal is not None:
-                    return active_proposal
-    finally:
-        cv2.destroyWindow(window)
-
-
-def preview_crop(cropped: np.ndarray, title: str) -> str:
-    """Confirm a crop before advancing; re-crop always returns to the source image."""
-    import tkinter as tk
-    from tkinter import ttk
-    from PIL import ImageTk
-
-    root = tk.Tk()
-    root.title("裁剪预览 / Crop preview - " + title)
-    root.resizable(False, False)
-    action = "skip"
-
-    def decide(value: str) -> None:
-        nonlocal action
-        action = value
-        root.quit()
-
-    try:
-        preview = Image.fromarray(cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB))
-        max_width = max(160, min(1200, root.winfo_screenwidth() - 100))
-        max_height = max(120, min(760, root.winfo_screenheight() - 240))
-        preview.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
-        photo = ImageTk.PhotoImage(preview, master=root)
-        ttk.Label(root, text="检查当前图片，确认保存后进入下一张 / Review before saving and advancing",
-                  padding=10).pack()
-        ttk.Label(root, image=photo).pack(padx=12)
-        ttk.Label(root, text=f"{cropped.shape[1]} × {cropped.shape[0]} px", padding=6).pack()
-        buttons = ttk.Frame(root, padding=12)
-        buttons.pack(fill="x")
-        ttk.Button(buttons, text="重新裁剪 / Re-crop (R)",
-                   command=lambda: decide("recrop")).pack(side="left", padx=5)
-        ttk.Button(buttons, text="跳过 / Skip (Esc)",
-                   command=lambda: decide("skip")).pack(side="left", padx=5)
-        save = ttk.Button(buttons, text="保存并下一张 / Save & next (Enter)",
-                          command=lambda: decide("save"))
-        save.pack(side="left", padx=5)
-        root.bind("<Return>", lambda event: decide("save"))
-        root.bind("<r>", lambda event: decide("recrop"))
-        root.bind("<R>", lambda event: decide("recrop"))
-        root.bind("<Escape>", lambda event: decide("skip"))
-        root.protocol("WM_DELETE_WINDOW", lambda: decide("skip"))
-        save.focus_set()
-        root.mainloop()
-    finally:
-        root.destroy()
-    return action
+    result = image[dy:h - dy, dx:w - dx].copy()
+    if getattr(args, "square", False) and result.shape[0] != result.shape[1]:
+        side=max(result.shape[:2])
+        result=cv2.resize(result,(side,side),interpolation=cv2.INTER_CUBIC)
+    return result
 
 
 def review_and_crop(image: np.ndarray, proposed: np.ndarray | None,
-                    args: argparse.Namespace, title: str) -> tuple[np.ndarray, np.ndarray] | None:
-    """Keep the current image pending until saved or skipped, without intermediate writes."""
-    while True:
-        corners = choose_corners(image, proposed, title)
-        if corners is None:
-            return None
-        cropped = finish_crop(rectify(image, corners), args)
-        action = preview_crop(cropped, title)
-        if action == "save":
-            return corners, cropped
-        if action != "recrop":
-            return None
-        # Start a fresh manual selection on the original, not on an already warped crop.
-        proposed = None
-
-
-def folder_dialogs() -> list[str] | None:
-    import tkinter as tk
-    from tkinter import filedialog, messagebox
-    root = tk.Tk()
-    root.withdraw()
-    try:
-        retry = messagebox.askyesno("处理方式", "是否手动处理已有的“裁剪失败”文件夹？\n\n是：选择上次的结果总文件夹，手动裁剪失败照片。\n否：选择原照片，开始自动批量裁剪。")
-        if retry:
-            destination = filedialog.askdirectory(title="选择包含“裁剪成功”和“裁剪失败”的结果总文件夹")
-            return [destination, "--retry-failed"] if destination else None
-        source = filedialog.askdirectory(title="选择拍屏照片所在文件夹")
-        if not source:
-            return None
-        destination = filedialog.askdirectory(title="选择结果总文件夹（将创建裁剪成功、裁剪失败两个子文件夹）")
-        if not destination:
-            return None
-        review = messagebox.askyesno("裁切方式", "是否逐张确认裁切区域？\n\n是：查看自动识别结果，可手动点选四角。\n否：自动批量处理，完成后请检查结果。")
-        return [source, destination] + (["--review"] if review else [])
-    finally:
-        root.destroy()
-
+                    args: argparse.Namespace, title: str, *, workspace, filename=""):
+    """The same persistent page displays corners and preview; Enter saves once."""
+    return workspace.review(image, proposed, args, title,
+                            auto_detect=not (args.manual or args.retry_failed), filename=filename)
 
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
@@ -575,6 +470,7 @@ def parser() -> argparse.ArgumentParser:
     mode.add_argument("--review", action="store_true", help="Review automatic corners before saving")
     mode.add_argument("--retry-failed", action="store_true", help="Manually crop pending failures from the result root")
     result.add_argument("--recursive", action="store_true", help="Include subfolders")
+    result.add_argument("--square", action="store_true", help="Crop originally square pictures to 1:1 after perspective correction")
     trimming = result.add_mutually_exclusive_group()
     trimming.add_argument("--no-trim-black", dest="no_trim_black", action="store_true",
                           help="Preserve black content after perspective correction (default)")
@@ -589,7 +485,23 @@ def parser() -> argparse.ArgumentParser:
     return result
 
 
-def run(args: argparse.Namespace) -> int:
+def create_workspace():
+    from crop_ui import CropWorkspace
+    return CropWorkspace(sys.modules[__name__])
+
+
+def run(args: argparse.Namespace, *, workspace=None) -> int:
+    owned = workspace is None and (args.manual or args.review or args.retry_failed)
+    if owned:
+        workspace = create_workspace()
+    try:
+        return run_batch(args, workspace=workspace)
+    finally:
+        if owned:
+            workspace.close()
+
+
+def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
     if args.retry_failed:
         if args.output_dir is not None:
             raise ValueError("Use: python screen_crop.py RESULT_ROOT --retry-failed")
@@ -637,19 +549,24 @@ def run(args: argparse.Namespace) -> int:
                 status, detail = "existing", "Output already exists; use --overwrite to replace."
             else:
                 image = load_image(path)
-                corners = None if args.manual or args.retry_failed else detect_screen(image)
+                interactive = args.manual or args.review or args.retry_failed
+                corners = None if interactive else detect_screen(image, square=args.square)
                 cropped = None
                 if args.manual or args.review or args.retry_failed:
-                    reviewed = review_and_crop(image, corners, args, f"{index}/{len(files)}")
+                    reviewed = review_and_crop(image, corners, args, f"{index}/{len(files)}",
+                                               workspace=workspace, filename=str(relative))
                     if reviewed is None:
-                        status, detail = "skipped", "Skipped by user."
+                        if workspace.aborted:
+                            status, detail = "cancelled", "Batch stopped; remaining photos were not processed."
+                        else:
+                            status, detail = "skipped", "Skipped by user."
                     else:
                         corners, cropped = reviewed
-                if status != "skipped":
+                if status not in ("skipped", "cancelled"):
                     if corners is None:
                         raise ValueError("No screen rectangle detected. Retry RESULT_ROOT --retry-failed.")
                     if cropped is None:
-                        cropped = finish_crop(rectify(image, corners), args)
+                        cropped = finish_crop(rectify(image, corners, square=args.square), args)
                     target.parent.mkdir(parents=True, exist_ok=True)
                     temporary = target.with_name(target.name + ".tmp")
                     try:
@@ -684,6 +601,10 @@ def run(args: argparse.Namespace) -> int:
                 detail += f"; could not remove failure copy: {exc}"
         print(f"[{index}/{len(files)}] {status}: {relative} {detail}", flush=True)
         report.append([str(relative), str(target.relative_to(destination)), status, detail])
+        if workspace is not None:
+            workspace.record(status, str(relative), detail)
+            if workspace.aborted:
+                break
     report_path = destination / ("manual_crop_report.csv" if args.retry_failed else "crop_report.csv")
     with report_path.open("w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.writer(stream)
@@ -696,42 +617,18 @@ def run(args: argparse.Namespace) -> int:
 
 def main() -> int:
     argv = sys.argv[1:]
-    gui = not argv
     if not argv:
+        workspace = create_workspace()
         try:
-            argv = folder_dialogs()
-        except Exception as exc:
-            print(f"Folder dialog unavailable: {exc}. Use: python screen_crop.py INPUT OUTPUT", file=sys.stderr)
-            return 2
-        if argv is None:
-            return 0
+            return workspace.launch()
+        finally:
+            workspace.close()
     args = parser().parse_args(argv)
     try:
-        result = run(args)
-        if gui and not args.retry_failed:
-            failure_dir = args.output_dir.resolve() / FAILURE_FOLDER
-            pending = sum(p.is_file() and p.suffix.lower() in EXTENSIONS for p in failure_dir.rglob("*"))
-            if pending:
-                import tkinter as tk
-                from tkinter import messagebox
-                root = tk.Tk()
-                root.withdraw()
-                try:
-                    retry = messagebox.askyesno("自动裁剪完成", f"还有 {pending} 张照片位于“裁剪失败”。\n现在手动裁剪这些照片吗？\n\n成功后将保存到“裁剪成功”，并移除失败副本。")
-                finally:
-                    root.destroy()
-                if retry:
-                    retry_args = argparse.Namespace(**vars(args))
-                    retry_args.input_dir = args.output_dir
-                    retry_args.output_dir = None
-                    retry_args.retry_failed = True
-                    retry_args.manual = retry_args.review = False
-                    result = run(retry_args)
-        return result
+        return run(args)
     except (ValueError, OSError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

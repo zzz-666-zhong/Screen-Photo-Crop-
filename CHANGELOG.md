@@ -1,5 +1,14 @@
 # 更新记录 / Changelog
 
+## 0.2.0 — 2026-10-10
+
+- 原图、四角编辑、裁剪结果和批次状态统一在一个 Tk 工作台。 / Unify original, corner editing, crop preview, and batch status in one Tk workspace.
+- 自动/手动四角有效后直接预览，按一次 Enter 保存并下一张；重新裁剪清空旧预览，拖动角点可调整。 / Valid automatic/manual corners preview immediately; one Enter saves and advances. Re-crop clears stale previews and corner handles can be dragged.
+- 启动页可选择正方形模式，CLI 支持 `--square`，完整四角区域透视校正为 1:1。 / Select Square at startup or use `--square` to rectify the complete corner region to 1:1.
+- 灰度/低对比度候选补充四边和纹理证据；原权重保持不变，提供可复现合成回归。 / Add four-border/texture evidence for grayscale/low-contrast candidates, retain weights, and provide reproducible synthetic regression.
+- 后台检测避免阻塞编辑器；统一颜色、版式和 Windows DPI 适配。 / Run detection in a worker and improve colors, layout, and Windows DPI support.
+- 结束批次不再将当前及剩余图片当作失败导出。 / Stopping no longer exports the current/remaining photos as failures.
+
 ## 0.1.1 — 2026-10-09
 
 - 修复精简目录没有 `.crop-env` 时启动脚本直接退出的问题。 / Fix the launcher exiting when a clean download has no `.crop-env`.

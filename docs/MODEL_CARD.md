@@ -2,9 +2,9 @@
 
 ## 用途 / Intended use
 
-定位拍摄屏幕中显示的完整彩色图片，产生四角用于裁剪和透视校正。模型为候选四边形评分，不是语义分割或去模糊模型。
+定位拍摄屏幕中显示的完整图片，产生四角用于裁剪和透视校正。原森林主要用于彩色内容，v0.2.0 对灰度和低对比度候选补充四边/纹理证据。模型为候选四边形评分，不是语义分割或去模糊模型。
 
-Locate complete color pictures displayed in photographed screens and provide corners for cropping and perspective correction. The model scores candidate quadrilaterals; it is not a semantic segmenter or deblurring model.
+Locate complete pictures displayed in photographed screens and provide corners for cropping and perspective correction. The original forest primarily handles colorful content; v0.2.0 adds four-border/texture evidence for grayscale and low-contrast proposals. The model scores quadrilaterals; it is not a semantic segmenter or deblurring model.
 
 | 项目 / Item | 值 / Value |
 |---|---|
@@ -27,7 +27,8 @@ Weights are loaded directly from the compressed file. Feature names/order are de
 1. 处理 EXIF 方向，缩放检测副本到最长边不超过 1400 像素，并抑制部分稀疏黄色标线。 / Correct EXIF orientation, resize the detection copy to a maximum dimension of 1400 pixels, and suppress some sparse yellow annotation components.
 2. 结合颜色、CLAHE 对比度增强、Canny、多阈值及纹理检测生成四边形；部分候选通过单边延伸补全。 / Combine color, CLAHE, Canny, multiple thresholds, and texture to generate quadrilaterals, with single-side extensions for selected proposals.
 3. 提取几何、内外颜色、亮度差、纹理、边缘覆盖与暗色比例等 24 个特征，通过随机森林预测 IoU 评分。 / Extract 24 geometry, color, brightness, texture, edge coverage, and darkness features; predict IoU scores with the forest.
-4. 最高分低于 `0.4` 或无候选时拒绝；否则细化四条边、校正透视并输出。评分不是概率。 / Reject when no candidates exist or the best score is below `0.4`; otherwise refine edges and rectify. Scores are not probabilities.
+4. 彩色候选仍采用 `0.4` 阈值。无达标彩色候选时，灰度候选先通过四边覆盖、边缘差异、内部动态范围和纹理隔离筛选，再采用森林 `0.24` 阈值及边缘/纹理排序；无合格候选则拒绝。评分不是概率。 / Color proposals retain the `0.4` threshold. If none qualifies, monochrome proposals must pass four-border coverage, contrast, dynamic-range, and texture-isolation gates, then use a forest threshold of `0.24` with edge/texture ranking. Reject if none qualifies. Scores are not probabilities.
+5. `--square` 对候选宽高比例应用柔性参考，不硬性排除透视后的长方形；随后用完整四角输出 1:1。 / `--square` applies a soft aspect prior without rejecting perspective-distorted rectangles, then rectifies all four corners to 1:1.
 
 自动边界细化向内调整约 0.5–2 个检测像素以减轻插值残边，默认不按黑色行列裁去内部暗色内容。标线抑制只用于检测，输出仍取自原图。
 
@@ -59,9 +60,28 @@ IoU measures intersection-over-union between predicted and labeled regions; pass
 
 Training and validation share some scenes/content, and validation results were inspected during development, so this is not an independent blind test. The sample is small and corner labels contain pixel-level uncertainty; these figures do not estimate accuracy on arbitrary new images. Synthetic tests are software regression checks, not a new real-world accuracy evaluation.
 
+## v0.2.0 合成回归 / Synthetic regression
+
+使用 [场景生成器](../examples/recognition_scenes.py) 与相同权重比较 v0.1.1 和 v0.2.0。8 类场景包括彩色、正方形、灰度、灰度正方形、暗色、模糊、小目标、低对比度。阈值开发使用种子 11、29，验证使用 41、67。验证组 IoU ≥ 0.85 达标数从 10/16 提升到 16/16，平均 IoU 从 61.0% 提升到 97.7%。逐张记录见 [recognition-v020.csv](recognition-v020.csv)。
+
+Compare v0.1.1 and v0.2.0 with the [scene generator](../examples/recognition_scenes.py) and identical weights. Eight categories cover color, square, grayscale, grayscale square, dark, blur, small targets, and low contrast. Seeds 11/29 were used during threshold development; 41/67 for verification. Verification passes at IoU ≥ 0.85 improve from 10/16 to 16/16; mean IoU improves from 61.0% to 97.7%. See [per-scene metrics](recognition-v020.csv).
+
+复现当前版本，或将旧版 `screen_crop.py` 导出到临时文件后使用 `--baseline` 对比。输出路径必须尚不存在：
+
+Reproduce current metrics, or export the old script to a temporary file and add `--baseline` for comparison. The output path must not exist:
+
+```powershell
+python scripts/evaluate_recognition.py --output recognition_metrics.csv
+python scripts/evaluate_recognition.py --baseline "D:\temporary\v011_screen_crop.py" --output comparison.csv
+```
+
+本次未重新训练权重。验证与开发共享场景生成方式，样本少；没有新增独立真实照片测试，历史 13 张原图当前不在可复评输入中，所以未重算历史表。上述合成结果仅证明这些场景的回归行为，不能宣传为真实识别准确率。
+
+Weights were not retrained. Development and verification share the scene generator and the sample is small. No new independent real-photo test was performed; the 13 historical originals are unavailable for reevaluation, so the historical table was not recomputed. These results verify behavior on synthetic scenes and must not be advertised as real-world accuracy.
+
 ## 限制 / Limitations
 
-- 纯灰度或几乎无彩色内容的候选可能被过滤。 / Grayscale or nearly colorless candidates may be filtered out.
+- 灰度检测需要可辨认四边及内部纹理；平坦内容、文本面板或复杂背景可能漏检或误检。 / Grayscale detection needs distinguishable borders and interior texture; flat content, text panels, or complex backgrounds may be missed or misidentified.
 - 目标极小、靠近图像边缘、严重反光或边界不可区分时可能失败。 / Tiny targets, targets near image edges, glare, and indistinguishable borders can cause failure.
 - 没有单独量化抖动强度、相机型号或屏幕类型的效果。 / No separate measurements by shake level, camera, or screen type are available.
 - 不恢复失焦、运动模糊、反光、摩尔纹或原屏幕像素。 / Does not restore defocus, motion blur, glare, moiré, or original screen pixels.
