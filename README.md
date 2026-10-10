@@ -4,7 +4,7 @@
 
 Extract complete pictures from photographed screens with automatic corner detection, perspective correction, and dark-content preservation. Includes a pretrained model, a single-page preview, Enter-to-save review, manual re-cropping, and square mode.
 
-**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.2.0**
+**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.2.1**
 
 [使用指南 / Usage](docs/USAGE.md) · [模型与评估 / Model & evaluation](docs/MODEL_CARD.md) · [继续训练 / Training](docs/TRAINING.md) · [发布指南 / Publishing](docs/PUBLISHING.md)
 
@@ -18,6 +18,7 @@ Extract complete pictures from photographed screens with automatic corner detect
 | 默认保留黑衣服、黑背景；需要时显式开启黑边清除。 | Preserves dark clothing and backgrounds by default; black-margin trimming is opt-in. |
 | 自动批处理、逐张审核、手动选四角、失败补裁。 | Automatic batches, review, manual corners, and failure retries. |
 | 原图、四角调整与裁剪结果在同一页面；四角有效后自动预览，按一次 Enter 保存并下一张。 | Original, corner editing, and crop preview share one page; valid corners preview immediately, and one Enter saves and advances. |
+| 预览就绪后直接点击左侧原图重选四角，点击位置作为第一个点；按住角点拖动仍可微调。 | Click the left original to reselect four corners, using that click as the first point; dragging a handle still adjusts it. |
 | 开始时可选择正方形模式，按完整四角透视校正为 1:1。 | Select square mode at startup to rectify the complete four-corner region to 1:1. |
 | 灰度与低对比度候选增加四边和纹理证据，保留原彩色识别路径。 | Add four-border and texture evidence for grayscale/low-contrast candidates while retaining the original color path. |
 | 支持子目录、中文路径、EXIF 方向校正和常见图像格式。 | Supports subfolders, Unicode paths, EXIF orientation, and common image formats. |
@@ -99,7 +100,7 @@ Choose source/output folders, workflow, and picture shape on the startup page. S
 3. 处理方式选择“自动识别 · 逐张确认 / Review”。普通横图、竖图选择“完整图片 / Full picture”；目标本来是正方形时选择“正方形 · 1:1 / Square”。 / Select Review. Use Full picture for landscape/portrait targets, or Square · 1:1 for originally square targets.
 4. 首次处理通常保持“覆盖旧结果”和“清除黑边”关闭。有多层照片目录时勾选“包含子目录”，需要检查识别边界时勾选“保存识别框”。然后点击“开始裁剪”。 / Usually leave Overwrite and Trim black off for the first run. Enable Recursive for subfolders and Debug for saved boundary overlays, then click Start cropping.
 5. 等待当前照片识别完成。左侧显示原照片与四个角点，右侧显示最终裁剪预览；上方显示当前文件名和批次序号，右下显示输出像素尺寸及是否已保存。 / Wait for detection. The original and four handles appear on the left; the final crop appears on the right. The filename/counter is above, and the output size/save state is below the preview.
-6. 检查右侧是否保留完整目标、是否仍有屏幕边框。结果正确时**按一次 Enter**，或点击“保存并下一张”；结果不正确时拖动角点，或先“重新裁剪”再手动选四角。 / Check that the whole target is included and unwanted screen borders are excluded. **Press Enter once** or click Save & next to accept; otherwise drag handles or use Re-crop and select corners manually.
+6. 检查右侧是否保留完整目标、是否仍有屏幕边框。结果正确时**按一次 Enter**，或点击“保存并下一张”；结果不正确时直接点击左侧原图，从这次点击开始重选四角，也可拖动角点微调。 / Check that the whole target is included and unwanted screen borders are excluded. **Press Enter once** or click Save & next to accept; otherwise click the left original to start a new four-point selection, or drag handles to adjust.
 7. 每张照片分别确认。生成预览不会写入裁剪文件，也不会自动进入下一张。最后一张完成后，无参数启动的工作台会保留批次结果页；点击“返回设置”可开始下一批。 / Confirm each photo separately. Generating a preview neither saves a crop nor advances automatically. When launched without arguments, the workspace stays on the result page after the last photo; Settings starts another batch.
 8. 打开 `D:\裁剪结果\裁剪成功` 查看 PNG。如果有跳过或处理失败的照片，到设置页选择“失败图片补裁”，继续手动处理。 / Open `D:\裁剪结果\裁剪成功` to inspect the PNG files. Use Retry failures on the startup page to manually handle skipped or failed photos.
 
@@ -179,9 +180,9 @@ Relative paths are interpreted from the terminal's working directory. Running `p
 
 ### 1. 自动识别后逐张审核 / Review automatic crops
 
-自动识别后，左侧显示原图和四角，右侧直接显示裁剪预览；可拖动角点或点击重新裁剪。检查结果后按一次 Enter 保存并进入下一张，适合首次处理一批新照片。
+自动识别后，左侧显示原图和四角，右侧直接显示裁剪预览。需要重新裁剪时，直接点击左侧原图的第一个新角点，接着选择其余三个点，无需先点击“重新裁剪”；也可拖动角点微调。检查结果后按一次 Enter 保存并进入下一张，适合首次处理一批新照片。
 
-Automatic detection shows the original and corners on the left and the crop preview on the right. Drag corners or click Re-crop, then press Enter once to save and advance. Use this when processing a new collection.
+Automatic detection shows the original and corners on the left and the crop preview on the right. Click the first new corner on the left original, then select the other three; no Re-crop button is needed. You can also drag handles to adjust. Press Enter once to save and advance. Use this when processing a new collection.
 
 ```powershell
 python screen_crop.py "D:\拍屏照片" "D:\裁剪结果" --review
@@ -273,7 +274,7 @@ python screen_crop.py --version
 当前版本输出示例 / Example output for the current version:
 
 ```text
-screen_crop.py 0.2.0
+screen_crop.py 0.2.1
 ```
 
 ### 正方形模式 / Square mode
@@ -297,6 +298,7 @@ python screen_crop.py "D:\裁剪结果" --retry-failed --square
 | 操作 / Action | 中文 | English |
 |---|---|---|
 | 四角 / Corners | 自动框直接生成右侧预览；手动点击四角后也自动预览。拖动角点调整。 | Automatic corners preview immediately; four manual points also preview automatically. Drag handles to adjust. |
+| 点击左侧原图 / Click original | 已有四角时，单击直接重选并记为第一个点，旧预览清除；角点上单击也可重选，按住拖动则微调。 | With four corners selected, a click restarts at that first point and clears the old preview. Clicking a handle also restarts; dragging adjusts it. |
 | Enter | 检查预览后按一次，保存当前图并进入下一张；未选四角时不保存。 | Press once after inspection to save and advance; incomplete selections cannot save. |
 | 重新裁剪 / Re-crop · R | 清空当前四角和预览，在同一张原图重新选点。 | Clear corners and preview, then reselect on the same original. |
 | 撤销 / Undo · 右键 / Right click · Backspace | 撤销一个点；重新选四角前不能保存旧预览。 | Undo one point; stale previews cannot be saved. |
@@ -309,10 +311,10 @@ Review, manual, and retry modes use the same workspace. Automatic batches have n
 
 ### 手动选四角与拖动调整 / Selecting and adjusting corners
 
-1. 审核时先等待识别结束。如果自动框不正确，点击“重新裁剪”或按 R；手动模式和失败补裁一开始就等待你选点。 / In Review, wait for detection to finish. If the proposal is wrong, click Re-crop or press R. Manual and Retry start by waiting for your points.
+1. 审核时先等待识别结束。如果自动框不正确，直接在左侧原图点击第一个新角点，即可清除旧框和预览、开始重选；手动模式和失败补裁一开始就等待你选点。 / In Review, wait for detection to finish. If the proposal is wrong, click the first new corner on the left original to clear the old selection/preview and start over. Manual and Retry start by waiting for your points.
 2. 在**左侧原图**依次点击目标图片本身的左上、右上、右下、左下角。选择屏幕内要提取的图片边界，不要选择手机照片四角、显示器外框或工具栏。 / On the **left original**, click the target picture's top-left, top-right, bottom-right, and bottom-left corners. Select the picture inside the screen, rather than the camera-photo corners, monitor bezel, or toolbar.
 3. 选四个有效角点后，右侧自动显示透视校正结果。不到四点、点重复或选区过小时，保存按钮不会启用；此时按 Enter 也不会保存。 / Four valid points automatically produce the rectified preview. Fewer than four points, duplicates, or a very small region cannot enable saving; Enter does not save an invalid selection.
-4. 点错时点击“撤销”、按 Backspace 或右键撤销一个点；四角都已选好后，可按住某个角点拖到正确位置。**松开鼠标后**重新计算预览，拖动过程中不能保存。需要从头重选时使用“重新裁剪”。 / Undo a wrong point with the Undo button, Backspace, or right-click. With four points selected, drag a handle to the correct location. The preview updates **after releasing the mouse**; saving is disabled during a drag. Use Re-crop to start over.
+4. 点错时点击“撤销”、按 Backspace 或右键撤销一个点；四角都已选好后，可按住某个角点拖到正确位置。**松开鼠标后**重新计算预览，拖动过程中不能保存。需要从头重选时直接单击左侧原图；“重新裁剪”按钮和 R 快捷键仍可清空选点。 / Undo a wrong point with the Undo button, Backspace, or right-click. With four points selected, drag a handle to the correct location. The preview updates **after releasing the mouse**; saving is disabled during a drag. Click the left original to start over; Re-crop and R remain available to clear the selection.
 5. 查看右侧最终结果和尺寸。确认后按一次 Enter，或点击“保存并下一张”。重新裁剪和撤销不会保存之前的预览；每次保存的都是当前有效四角对应的结果。 / Inspect the final preview and dimensions, then press Enter once or click Save & next. Re-crop and Undo cannot save a stale preview; saving always uses the current valid corners.
 
 识别过程中，“保存”“重新裁剪”和“撤销”暂不可用；你可以等待，或使用“跳过”“结束”。若识别没有找到目标或提示不可用，工作台会允许手动选四角。终端命令启动的审核/手动窗口会在该批结束后关闭；无参数启动则保留完成页面供查看。

@@ -28,7 +28,7 @@ except ImportError as exc:
     ) from exc
 
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 SUCCESS_FOLDER = "裁剪成功"

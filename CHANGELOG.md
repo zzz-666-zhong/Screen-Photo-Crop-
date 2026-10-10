@@ -1,5 +1,11 @@
 # 更新记录 / Changelog
 
+## 0.2.1 — 2026-10-10
+
+- 自动识别预览后直接点击左侧原图重选四角，点击位置作为第一个新点，无需先按“重新裁剪”。手动和失败补裁也支持此操作。 / Click the left original after detection to start a new four-point selection at that position, without pressing Re-crop. Manual and retry workflows support the same interaction.
+- 区分角点单击与拖动：单击重选，按住拖动继续微调；重选清除旧预览，四点有效后才允许 Enter 保存。 / Distinguish handle clicks from drags: click to reselect, drag to adjust. Reselection clears stale previews and Enter saves only after four valid points.
+- 更新双语操作说明和交互回归测试。 / Update bilingual instructions and interaction regression tests.
+
 ## 0.2.0 — 2026-10-10
 
 - 原图、四角编辑、裁剪结果和批次状态统一在一个 Tk 工作台。 / Unify original, corner editing, crop preview, and batch status in one Tk workspace.

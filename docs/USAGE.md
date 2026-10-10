@@ -112,6 +112,7 @@ python screen_crop.py "D:\裁剪结果" --retry-failed --square
 | 操作 / Action | 中文 | English |
 |---|---|---|
 | 四角 / Corners | 自动框直接生成右侧预览；手动点击四角后也自动预览。拖动角点调整。 | Automatic corners preview immediately; four manual points also preview automatically. Drag handles to adjust. |
+| 点击左侧原图 / Click original | 已有四角时，单击直接清除旧框和预览，点击位置记为第一个新点；单击角点也可重选，按住拖动则微调。 | With four corners selected, click to clear the old selection/preview and use that position as the first new point. Clicking a handle also restarts; dragging adjusts it. |
 | Enter | 检查预览后按一次，保存当前图并进入下一张；未选四角时不保存。 | Press once after inspection to save and advance; incomplete selections cannot save. |
 | 重新裁剪 / Re-crop · R | 清空当前四角和预览，在同一张原图重新选点。 | Clear corners and preview, then reselect on the same original. |
 | 撤销 / Undo · 右键 / Right click · Backspace | 撤销一个点；重新选四角前不能保存旧预览。 | Undo one point; stale previews cannot be saved. |

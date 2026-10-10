@@ -116,6 +116,7 @@ class CropWorkspace:
         self.future = None
         self.poll_id = None
         self.drag_index = None
+        self.reselect_point = None
         self.enter_down = False
         self.source_pil = self.preview_pil = None
         self.source_photo = self.preview_photo = None
@@ -229,7 +230,7 @@ class CropWorkspace:
         panes.pack(fill="both", expand=True)
         panes.columnconfigure((0,1), weight=1, uniform="images")
         panes.rowconfigure(1, weight=1)
-        ttk.Label(panes, text="01   原图 · 四角调整 / Original & corners").grid(row=0,column=0,sticky="w",pady=(0,8))
+        ttk.Label(panes, text="01   原图 · 点击重选四角 / Original · Click to reselect").grid(row=0,column=0,sticky="w",pady=(0,8))
         ttk.Label(panes, text="02   裁剪预览 / Crop preview").grid(row=0,column=1,sticky="w",pady=(0,8),padx=(14,0))
         self.source_canvas = tk.Canvas(panes, background="#111c30", highlightthickness=0, width=400, height=350)
         self.preview_canvas = tk.Canvas(panes, background="white", highlightthickness=1, highlightbackground="#dfe5ee", width=400, height=350)
@@ -316,6 +317,7 @@ class CropWorkspace:
         self.mode_badge.set("正方形 1:1 / Square" if args.square else "完整图片 / Full picture")
         self.selection = CropSelection(image, args, self.backend)
         self.drag_index = None
+        self.reselect_point = None
         self.source_pil = Image.fromarray(image[:,:,::-1])
         self.preview_pil = None
         self.action.set("pending")
@@ -380,7 +382,7 @@ class CropWorkspace:
         self.reset_button.configure(state="normal")
         self.undo_button.configure(state="normal" if self.selection.points else "disabled")
         self.preview_detail.set(f"{preview.shape[1]} × {preview.shape[0]} px · 尚未保存 / Not saved" if ready else "等待有效四角 / Waiting for valid corners")
-        self.status.set(self.selection.error or ("预览已就绪 · 按 Enter 保存并进入下一张；R 重新裁剪 / Enter: save & next · R: re-crop" if ready else f"请按顺序选四角 · 已选 {len(self.selection.points)}/4；可拖动角点 / Select 4 corners; drag to adjust"))
+        self.status.set(self.selection.error or ("预览已就绪 · 点击原图重选；拖动角点微调；Enter 保存并下一张 / Click original: reselect · Drag: adjust · Enter: save & next" if ready else f"请按顺序选四角 · 已选 {len(self.selection.points)}/4；可拖动角点 / Select 4 corners; drag to adjust"))
         self.render_source()
         self.render_preview()
 
@@ -421,10 +423,17 @@ class CropWorkspace:
         if point is None:
             return
         self.source_canvas.focus_set()
+        self.reselect_point = None
         for i,p in enumerate(self.selection.points):
             if np.linalg.norm(np.array(point)-p)*self.viewport.scale<=14:
                 self.drag_index=i
+                # A handle click also starts over; a deliberate drag still adjusts it.
+                if len(self.selection.points) == 4:
+                    self.reselect_point = point
+                self.save_button.configure(state="disabled")
                 return
+        if len(self.selection.points) == 4:
+            self.selection.reset()
         self.selection.add(point)
         self._selection_changed()
 
@@ -433,6 +442,10 @@ class CropWorkspace:
             return
         point = self.viewport.to_image(event.x,event.y)
         if point is not None:
+            if self.reselect_point is not None:
+                if np.linalg.norm(np.array(point)-self.reselect_point)*self.viewport.scale < 3:
+                    return
+                self.reselect_point = None
             self.selection.points[self.drag_index] = point
             self.selection.preview = None
             self.save_button.configure(state="disabled")
@@ -441,7 +454,12 @@ class CropWorkspace:
     def _release(self, event):
         if self.drag_index is not None:
             self.drag_index = None
-            self.selection.refresh()
+            if self.reselect_point is not None:
+                point, self.reselect_point = self.reselect_point, None
+                self.selection.reset()
+                self.selection.add(point)
+            else:
+                self.selection.refresh()
             self._selection_changed()
 
     def _shortcut(self, event, callback):
@@ -458,12 +476,14 @@ class CropWorkspace:
     def recrop(self):
         if self.selection is None or self.future is not None or not self.busy:
             return
+        self.drag_index = self.reselect_point = None
         self.selection.reset()
         self._selection_changed()
         self.source_canvas.focus_set()
 
     def undo(self):
         if self.selection is not None and self.busy and self.future is None:
+            self.drag_index = self.reselect_point = None
             self.selection.undo()
             self._selection_changed()
 

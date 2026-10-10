@@ -84,5 +84,77 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(state['value'],'pending')
 
 
+class DirectRecropTests(unittest.TestCase):
+    def setUp(self):
+        SelectionTests.setUp(self)
+        self.selection.set_corners(np.float32(self.corners))
+        self.workspace=CropWorkspace.__new__(CropWorkspace)
+        self.workspace.selection=self.selection
+        self.workspace.viewport=ImageViewport.fit((140,100),(500,400))
+        self.workspace.future=self.workspace.drag_index=self.workspace.reselect_point=None
+        self.workspace.busy=True
+        self.workspace.source_canvas=Mock()
+        self.workspace.save_button=Mock()
+        self.workspace.render_source=Mock()
+        self.workspace._selection_changed=Mock()
+        self.workspace._disable_actions=Mock()
+        self.state={'value':'pending'}
+        self.workspace.action=SimpleNamespace(get=lambda:self.state['value'],
+                                              set=lambda v:self.state.update(value=v))
+
+    def event(self, point):
+        x,y=self.workspace.viewport.to_canvas(point)
+        return SimpleNamespace(x=x,y=y)
+
+    def click(self, point):
+        event=self.event(point)
+        self.workspace._click(event)
+        self.workspace._release(event)
+
+    def test_click_replaces_automatic_corners_and_enter_waits_for_four_new_points(self):
+        new_corners=[(20,20),(120,20),(120,80),(20,80)]
+        self.click(new_corners[0])
+        np.testing.assert_allclose(self.selection.points,[new_corners[0]])
+        self.assertIsNone(self.selection.preview)
+        self.workspace._decide('save')
+        self.assertEqual(self.state['value'],'pending')
+        for point in new_corners[1:]:
+            self.click(point)
+        np.testing.assert_allclose(self.selection.accept()[0],new_corners)
+        self.assertEqual(self.selection.preview.shape[:2],(100,100))
+        self.workspace._decide('save')
+        self.assertEqual(self.state['value'],'save')
+
+    def test_click_handle_with_small_mouse_motion_starts_new_selection(self):
+        point=self.corners[0]
+        self.workspace._click(self.event(point))
+        self.workspace._drag(self.event((0.25,0.25)))
+        self.workspace._release(self.event((0.25,0.25)))
+        np.testing.assert_allclose(self.selection.points,[point])
+        self.assertIsNone(self.selection.accept())
+
+    def test_drag_handle_keeps_four_corners_and_recalculates_preview_on_release(self):
+        self.workspace._click(self.event(self.corners[0]))
+        self.workspace._decide('save')
+        self.assertEqual(self.state['value'],'pending')
+        self.workspace._drag(self.event((10,10)))
+        self.assertEqual(len(self.selection.points),4)
+        self.assertIsNone(self.selection.preview)
+        self.workspace._release(self.event((10,10)))
+        self.assertIsNotNone(self.selection.accept())
+        np.testing.assert_allclose(self.selection.points[0],(10,10))
+
+    def test_margin_detection_and_completed_batch_clicks_leave_selection_unchanged(self):
+        before=self.selection.accept()[1]
+        self.workspace._click(SimpleNamespace(x=0,y=0))
+        self.workspace.future=object()
+        self.click((20,20))
+        self.workspace.future=None
+        self.workspace.busy=False
+        self.click((20,20))
+        np.testing.assert_allclose(self.selection.points,self.corners)
+        np.testing.assert_array_equal(self.selection.preview,before)
+
+
 if __name__=='__main__':
     unittest.main()
