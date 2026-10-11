@@ -4,7 +4,7 @@
 
 Extract complete pictures from photographed screens with automatic corner detection, perspective correction, and dark-content preservation. Includes a pretrained model, a single-page preview, Enter-to-save review, manual re-cropping, and square mode.
 
-**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.2.1**
+**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.3.0**
 
 [使用指南 / Usage](docs/USAGE.md) · [模型与评估 / Model & evaluation](docs/MODEL_CARD.md) · [继续训练 / Training](docs/TRAINING.md) · [发布指南 / Publishing](docs/PUBLISHING.md)
 
@@ -13,12 +13,13 @@ Extract complete pictures from photographed screens with automatic corner detect
 | 中文 | English |
 |---|---|
 | 定位屏幕内图片本身，支持横图、竖图与透视四边形。 | Locates the picture inside the screen, including landscape, portrait, and perspective-distorted images. |
-| 240 棵树、24 个特征的随机森林选择候选区域，并细化四条边。 | A pretrained random forest with 240 trees and 24 features scores candidates, followed by edge refinement. |
-| 针对拍摄倾斜、弱边缘及局部反光增强边界定位。 | More robust boundary localization for camera tilt, weak edges, and partial reflections. |
+| 通用森林与反光小目标森林分别包含 240 棵树、24 个特征，选择候选区域并检查边界。 | Base and reflection forests each use 240 trees and 24 features to score candidates and check borders. |
+| 新增未标线原照片训练，使用局部反光、运动模糊和透视扰动增强小目标定位。 | Additional training on unmarked photos with glare, motion blur, and perspective augmentations improves small-target localization. |
 | 默认保留黑衣服、黑背景；需要时显式开启黑边清除。 | Preserves dark clothing and backgrounds by default; black-margin trimming is opt-in. |
 | 自动批处理、逐张审核、手动选四角、失败补裁。 | Automatic batches, review, manual corners, and failure retries. |
 | 原图、四角调整与裁剪结果在同一页面；四角有效后自动预览，按一次 Enter 保存并下一张。 | Original, corner editing, and crop preview share one page; valid corners preview immediately, and one Enter saves and advances. |
 | 预览就绪后直接点击左侧原图重选四角，点击位置作为第一个点；按住角点拖动仍可微调。 | Click the left original to reselect four corners, using that click as the first point; dragging a handle still adjusts it. |
+| 滚轮或 +/− 缩放原图，空格+左键/中键拖移，选区 Focus 放大角点，适应 Fit 恢复全图。 | Zoom with the wheel or +/−, pan with Space+left drag or middle drag, focus corners, and fit the full image. |
 | 开始时可选择正方形模式，按完整四角透视校正为 1:1。 | Select square mode at startup to rectify the complete four-corner region to 1:1. |
 | 灰度与低对比度候选增加四边和纹理证据，保留原彩色识别路径。 | Add four-border and texture evidence for grayscale/low-contrast candidates while retaining the original color path. |
 | 支持子目录、中文路径、EXIF 方向校正和常见图像格式。 | Supports subfolders, Unicode paths, EXIF orientation, and common image formats. |
@@ -30,9 +31,9 @@ Image processing runs locally on the CPU without a GPU, account, or online API. 
 
 ## 快速开始 / Quick start
 
-下载并解压发布包，或克隆仓库，在项目根目录执行命令。主程序和两个模型文件应保持在一起，模型压缩文件无需解压。
+下载并解压发布包，或克隆仓库，在项目根目录执行命令。主程序和三个模型文件（JSON 元数据和两份压缩权重）应保持在一起，模型压缩文件无需解压。
 
-Download and extract a release or clone the repository, then run commands from the project root. Keep the main script and both model files together; leave the model compressed.
+Download and extract a release or clone the repository, then run commands from the project root. Keep the main script and all three model files (JSON metadata and two compressed forests) together; leave the model compressed.
 
 ### 准备照片与项目文件 / Prepare the photos and project
 
@@ -317,6 +318,25 @@ Review, manual, and retry modes use the same workspace. Automatic batches have n
 4. 点错时点击“撤销”、按 Backspace 或右键撤销一个点；四角都已选好后，可按住某个角点拖到正确位置。**松开鼠标后**重新计算预览，拖动过程中不能保存。需要从头重选时直接单击左侧原图；“重新裁剪”按钮和 R 快捷键仍可清空选点。 / Undo a wrong point with the Undo button, Backspace, or right-click. With four points selected, drag a handle to the correct location. The preview updates **after releasing the mouse**; saving is disabled during a drag. Click the left original to start over; Re-crop and R remain available to clear the selection.
 5. 查看右侧最终结果和尺寸。确认后按一次 Enter，或点击“保存并下一张”。重新裁剪和撤销不会保存之前的预览；每次保存的都是当前有效四角对应的结果。 / Inspect the final preview and dimensions, then press Enter once or click Save & next. Re-crop and Undo cannot save a stale preview; saving always uses the current valid corners.
 
+### 放大后精确裁剪 / Precise cropping with zoom
+
+审核、手动裁剪和失败补裁均可放大**左侧原图**。滚轮向上放大、向下缩小，围绕鼠标位置缩放；也可点击 `+` / `−`，范围为适应窗口的 1–16 倍。右侧预览保持完整裁剪结果。
+
+Zoom the **left original** in Review, Manual, and Retry. Wheel up/down zooms around the pointer; `+` / `−` also work. Zoom ranges from 1× fit to 16×. The right preview continues to show the complete crop.
+
+| 操作 / Action | 方法 / How |
+|---|---|
+| 放大自动框 / Enlarge the detected region | 点击“选区 Focus”，至少已有两个点时可用。 / Click Focus after selecting at least two points. |
+| 查看放大后的其他区域 / Pan | 在原图上按住空格并用左键拖动，或按住鼠标中键拖动。 / Hold Space and drag with the left button, or drag with the middle button. |
+| 重选四角 / Reselect | 放大后直接单击原图第一个新角点，再依次选择其余三点。 / Click the first new corner in the zoomed original, then choose the other three. |
+| 微调边界 / Adjust | 按住角点拖动，松开后更新预览。 / Drag a handle; release to update the preview. |
+| 恢复全图 / Fit | 点击“适应 Fit”，查看所有角点。 / Click Fit to view all corners. |
+| 保存并下一张 / Save and advance | 确认右侧结果后按一次 Enter；下一张自动恢复全图。 / Check the preview and press Enter once; the next photo starts fitted. |
+
+缩放、拖移只改变显示视野，角点和输出始终使用原图坐标；放大不会增加原照片的细节。为避免误重选，移动视野时请使用空格或中键拖动。
+
+Zoom/pan changes the view while corners and output remain in source coordinates. Zoom cannot add missing image detail. Use Space or the middle button when moving the view to avoid starting a new selection.
+
 识别过程中，“保存”“重新裁剪”和“撤销”暂不可用；你可以等待，或使用“跳过”“结束”。若识别没有找到目标或提示不可用，工作台会允许手动选四角。终端命令启动的审核/手动窗口会在该批结束后关闭；无参数启动则保留完成页面供查看。
 
 During detection, Save, Re-crop, and Undo are temporarily unavailable; wait, Skip, or Stop. If detection finds no target or is unavailable, you can select corners manually. Review/Manual windows launched with CLI arguments close when their batch ends; launching without arguments retains the completion page.
@@ -401,7 +421,7 @@ Use `python screen_crop.py "D:\裁剪结果" --retry-failed` only for copies alr
 | 没有 `.crop-env` / No `.crop-env` folder | 新下载的项目本来不带本机环境，首次启动会创建；不需要复制别人电脑的环境。 / Fresh downloads have no machine-specific environment; first launch creates it, so do not copy another computer's environment. |
 | 提示找不到目录或没有图片 / Missing folder or no supported images | 检查路径、是否已放入照片；子目录中的照片需要 Recursive。`input`、`output` 是示例名字。 / Check paths and add photos; enable Recursive for subfolders. `input` and `output` are example names. |
 | 输入输出目录相同 / Same input/output folder | 为结果指定另一个目录，例如 `D:\裁剪结果`。 / Choose a separate result folder, such as `D:\裁剪结果`. |
-| 模型缺失或特征版本不一致 / Missing/mismatched model | 完整解压同一版本，保持两个模型文件与主程序同目录，不解压 `.xml.gz`。 / Extract the same version fully, keep both model files beside the script, and leave `.xml.gz` compressed. |
+| 模型缺失或特征版本不一致 / Missing/mismatched model | 完整解压同一版本，保持三个模型文件（JSON 元数据和两份压缩权重）与主程序同目录，不解压 `.xml.gz`。 / Extract the same version fully, keep all three model files (JSON metadata and two compressed forests) beside the script, and leave `.xml.gz` compressed. |
 | OpenCV 缺少 `ml.RTrees_create` / Missing `ml.RTrees_create` | 使用 `.cmd` 启动器或 `.\.crop-env\Scripts\python.exe`；项目需要 OpenCV 4.x。 / Use the `.cmd` launcher or project interpreter; OpenCV 4.x is required. |
 | 保存按钮灰色、Enter 没反应 / Save disabled or Enter does nothing | 等待识别，确保有四个有效角点，并松开正在拖动的鼠标；查看底部提示。 / Wait for detection, select four valid corners, release a drag, and read the status line. |
 | 旧裁剪没有变化 / Existing crops do not change | 默认跳过成功文件，重新审核或替换时加 `--overwrite`，或勾选覆盖。 / Successful outputs are skipped by default; enable Overwrite or add `--overwrite`. |
@@ -413,7 +433,23 @@ Use `python screen_crop.py "D:\裁剪结果" --retry-failed` only for copies alr
 
 When reporting a problem, include the version, launcher or complete command, terminal error text, and whether Square/Trim black was enabled. Check the version with `python screen_crop.py --version`. More troubleshooting is in [docs/USAGE.md](docs/USAGE.md).
 
-## 本次识别回归 / Recognition regression in v0.2.0
+## v0.3.0 反光与抖动训练 / Glare and motion-blur training
+
+根据使用者确认的 12 张边界截图，匹配到 11 张唯一未标线原照片：8 张用于训练、3 张预先留出。新增补充森林，使用局部反光、运动模糊及透视扰动增强，同时保留通用森林。小目标评分达标时启用补充模型；边界细化也检查评分，减少误裁到内部反射或纹理。
+
+Twelve user-confirmed boundary screenshots map to 11 unique unmarked originals: eight for training and three reserved beforehand. A new specialist uses glare, motion blur, and perspective augmentation while retaining the base forest. Qualified small targets use the specialist, with score checks on refinement to reduce snapping to interior reflections/texture.
+
+| 原照片边界评估 / Original-photo border evaluation | v0.2.1 | v0.3.0 |
+|---|---:|---:|
+| 训练原图达标（IoU ≥ 0.85）/ Training passes | 0/8 | 8/8 |
+| 留出原图达标 / Holdout passes | 0/3 | 3/3 |
+| 留出原图平均 IoU / Holdout mean IoU | 46.43% | 88.90% |
+
+留出照片与训练共享拍摄环境，仅 3 张；不能视为任意新场景的准确率。33 个额外反光/模糊/组合压力衍生样例中，当前 30 个达标，仍有 3 个训练组衍生样例存在边界偏差。原有合成回归 16/16 通过。完整分组、参数、权重指纹与匿名指标见 [模型说明](docs/MODEL_CARD.md)。
+
+The three holdout photos share the capture environment with training, so results do not estimate accuracy on arbitrary new scenes. Of 33 additional glare/blur/combined stress derivatives, 30 pass; three training derivatives retain border errors. All 16 existing synthetic checks pass. See the [model card](docs/MODEL_CARD.md) for splits, parameters, weight fingerprints, and anonymous metrics.
+
+## v0.2.0 识别回归 / Recognition regression in v0.2.0
 
 保留原预训练权重，改进灰度候选筛选与评分；正方形模式增加柔性形状参考。对比脚本使用相同权重和原创合成场景，指标见 [逐张结果](docs/recognition-v020.csv)，复现方法见 [模型说明](docs/MODEL_CARD.md)。这是合成场景回归，不代表真实照片准确率，也不是重新训练的模型。
 
@@ -430,9 +466,9 @@ Verification seeds 41 and 67 were excluded from threshold development (11 and 29
 
 ## 历史评估 / Recorded evaluation
 
-下表来自既有模型的历史同图对比，达标线为 IoU ≥ 85%，不是本次发布重新训练得到的结果。
+下表来自既有模型的历史同图对比，达标线为 IoU ≥ 85%，属于早期通用模型记录。v0.3.0 的新增训练结果单独列出。
 
-These historical same-image comparisons use a pass threshold of IoU ≥ 85%. The release was not retrained to produce them.
+These historical same-image comparisons use a pass threshold of IoU ≥ 85%. They describe the earlier base model; v0.3.0 training is reported separately.
 
 | 样本 / Samples | 旧版达标 / Previous | 当前模型达标 / Current | 旧版平均 IoU / Previous mean | 当前平均 IoU / Current mean |
 |---|---:|---:|---:|---:|
@@ -451,7 +487,8 @@ crop_ui.py                      Single-page desktop workspace
 launch_crop.py                  Isolated environment setup and launcher
 train_screen_model.py           Training entry point
 screen_crop_model.json          Model metadata
-screen_crop_forest.xml.gz       Pretrained weights
+screen_crop_forest.xml.gz       Base forest weights
+screen_crop_reflection.xml.gz   Reflection specialist weights
 requirements.txt               Runtime dependencies
 启动裁剪.cmd                    Windows launcher
 安装环境.cmd                    Windows setup-only entry point

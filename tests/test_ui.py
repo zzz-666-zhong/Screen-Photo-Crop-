@@ -4,8 +4,9 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import numpy as np
+from PIL import Image
 import screen_crop as crop
-from crop_ui import CropSelection, CropWorkspace, ImageViewport
+from crop_ui import CropSelection, CropWorkspace, ImageViewport, ImageNavigation
 
 
 class SelectionTests(unittest.TestCase):
@@ -92,6 +93,8 @@ class DirectRecropTests(unittest.TestCase):
         self.workspace.selection=self.selection
         self.workspace.viewport=ImageViewport.fit((140,100),(500,400))
         self.workspace.future=self.workspace.drag_index=self.workspace.reselect_point=None
+        self.workspace.pan_anchor=None
+        self.workspace.space_down=False
         self.workspace.busy=True
         self.workspace.source_canvas=Mock()
         self.workspace.save_button=Mock()
@@ -154,6 +157,73 @@ class DirectRecropTests(unittest.TestCase):
         self.click((20,20))
         np.testing.assert_allclose(self.selection.points,self.corners)
         np.testing.assert_array_equal(self.selection.preview,before)
+
+    def test_space_drag_pans_without_restarting_or_modifying_the_crop(self):
+        self.workspace.source_pil=Image.fromarray(self.image)
+        self.workspace.navigation=ImageNavigation(zoom=3.)
+        self.workspace.source_canvas.winfo_width.return_value=500
+        self.workspace.source_canvas.winfo_height.return_value=400
+        self.workspace.space_down=True
+        before=self.selection.preview.copy()
+        self.workspace._click(SimpleNamespace(x=200,y=180))
+        self.workspace._drag(SimpleNamespace(x=245,y=210))
+        self.workspace._release(SimpleNamespace(x=245,y=210))
+        self.assertIsNone(self.workspace.pan_anchor)
+        self.assertNotEqual(self.workspace.navigation.center,(70,50))
+        np.testing.assert_allclose(self.selection.points,self.corners)
+        np.testing.assert_array_equal(self.selection.preview,before)
+
+
+class NavigationTests(unittest.TestCase):
+    def test_pointer_anchor_and_source_coordinates_survive_zoom(self):
+        nav=ImageNavigation()
+        image_size,canvas_size=(4000,3000),(600,500)
+        initial=nav.viewport(image_size,canvas_size)
+        anchor=(240,210)
+        original=initial.to_image(*anchor)
+        nav.zoom_at(4,anchor,image_size,canvas_size)
+        enlarged=nav.viewport(image_size,canvas_size)
+        np.testing.assert_allclose(enlarged.to_image(*anchor),original)
+        np.testing.assert_allclose(enlarged.to_image(*enlarged.to_canvas(original)),original)
+        nav.reset()
+        self.assertEqual(nav.viewport(image_size,canvas_size),initial)
+
+    def test_panning_is_bounded_and_zoom_has_limits(self):
+        nav=ImageNavigation()
+        image_size,canvas_size=(1000,800),(500,400)
+        nav.zoom_at(1000,(250,200),image_size,canvas_size)
+        self.assertEqual(nav.zoom,16.)
+        for direction in (-1,1):
+            nav.pan(direction*100000,direction*100000,image_size,canvas_size)
+            view=nav.viewport(image_size,canvas_size)
+            self.assertLessEqual(view.x,24)
+            self.assertLessEqual(view.y,24)
+            self.assertGreaterEqual(view.x+view.width,476)
+            self.assertGreaterEqual(view.y+view.height,376)
+        nav.zoom_at(.0001,(250,200),image_size,canvas_size)
+        self.assertEqual(nav.zoom,1.)
+
+    def test_focus_enlarges_tiny_target_and_all_corners_remain_visible(self):
+        points=[(180,210),(240,208),(242,272),(178,274)]
+        before=list(points)
+        nav=ImageNavigation()
+        nav.focus(points,(2000,1500),(600,500))
+        view=nav.viewport((2000,1500),(600,500))
+        self.assertGreater(nav.zoom,5)
+        for p in points:
+            x,y=view.to_canvas(p)
+            self.assertTrue(0<x<600 and 0<y<500)
+        self.assertEqual(points,before)
+
+    def test_recropping_at_high_zoom_still_stores_original_image_coordinates(self):
+        case=DirectRecropTests()
+        case.setUp()
+        nav=ImageNavigation(zoom=4.)
+        nav.pan(55,-20,(140,100),(500,400))
+        case.workspace.viewport=nav.viewport((140,100),(500,400))
+        case.click((60,40))
+        np.testing.assert_allclose(case.selection.points,[(60,40)])
+        self.assertIsNone(case.selection.accept())
 
 
 if __name__=='__main__':

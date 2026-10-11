@@ -28,7 +28,7 @@ except ImportError as exc:
     ) from exc
 
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 SUCCESS_FOLDER = "裁剪成功"
@@ -208,7 +208,7 @@ def quad_features(small, gray, saturation, texture, gradients, q):
         np.mean(np.abs(np.concatenate(inner).astype(float)-outer.reshape(-1,3)))/255])
 
 
-def photo_candidates(image):
+def photo_evidence(image):
     small,scale=detection_image(image)
     gray=cv2.cvtColor(small,cv2.COLOR_BGR2GRAY)
     gray=cv2.GaussianBlur(gray,(5,5),0)
@@ -220,6 +220,12 @@ def photo_candidates(image):
     gx=cv2.Sobel(g,cv2.CV_32F,1,0,ksize=3)
     gy=cv2.Sobel(g,cv2.CV_32F,0,1,ksize=3)
     gradients=cv2.magnitude(gx,gy)
+    return small,scale,gray,hsv,texture,gradients
+
+
+def photo_candidates(image):
+    small,scale,gray,hsv,texture,gradients=photo_evidence(image)
+    h,w=gray.shape
     color=(((hsv[:,:,1]>60)&(hsv[:,:,2]>50)).astype(np.uint8)*255)
     masks=[]
     close=lambda m,k:cv2.morphologyEx(m,cv2.MORPH_CLOSE,np.ones((k,k),np.uint8))
@@ -346,7 +352,7 @@ def refine_photo_edges(image, quad):
     return result/scale
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=4)
 def load_scoring_forest(path, modified_ns):
     check_model_runtime()
     # Python handles Unicode folder names; OpenCV parses the model from memory.
@@ -378,10 +384,43 @@ def detect_screen(image: np.ndarray, *, square: bool = False) -> np.ndarray | No
     forest=load_scoring_forest(str(forest_path),forest_path.stat().st_mtime_ns)
     scores=forest.predict(X.astype(np.float32))[1].ravel()
     selected = select_candidate(candidates, scores, square=square)
+    specialist_selected = False
+    reflection = model.get('reflection')
+    if reflection:
+        if reflection['features'] != FEATURE_NAMES:
+            raise ValueError('Reflection model feature mismatch. Extract the complete release.')
+        reflection_path = path.with_name('screen_crop_reflection.xml.gz')
+        if not reflection_path.exists():
+            raise ValueError('Missing screen_crop_reflection.xml.gz. Extract the complete release.')
+        specialist = load_scoring_forest(str(reflection_path),reflection_path.stat().st_mtime_ns)
+        specialized_scores = specialist.predict(X.astype(np.float32))[1].ravel()
+        # The added forest is trained for small pictures on reflective screens.
+        # Use the original forest when no specialist proposal is confident enough.
+        eligible = (X[:,1] <= np.log(reflection['max_area_fraction']))
+        eligible &= specialized_scores >= reflection['minimum_score']
+        if eligible.any():
+            specialized_scores = np.where(eligible,specialized_scores,-np.inf)
+            proposed = select_candidate(candidates,specialized_scores,square=square)
+            if proposed is not None:
+                selected, specialist_selected = proposed, True
     if selected is None:
         return None
     best=candidates[selected][0]
+    if specialist_selected:
+        return guarded_refinement(image,np.float32(best),specialist,float(specialized_scores[selected]))
     return refine_photo_edges(image,np.float32(best))
+
+
+def guarded_refinement(image, quad, forest, original_score):
+    """Avoid snapping a learned picture border inward to reflected/interior edges."""
+    refined=refine_photo_edges(image,quad)
+    small,scale,gray,hsv,texture,gradients=photo_evidence(image)
+    features=quad_features(small,gray,hsv[:,:,1],texture,gradients,refined*scale)
+    if features is not None:
+        refined_score=float(forest.predict(np.float32([features]))[1][0,0])
+        if refined_score < original_score-.005:
+            return quad
+    return refined
 
 
 def select_candidate(candidates, scores, *, square=False):

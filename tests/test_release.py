@@ -15,7 +15,7 @@ class ReleaseTests(unittest.TestCase):
         files = release_files(ROOT)
         names = {p.relative_to(ROOT).as_posix() for p in files}
         for required in ("screen_crop.py", "crop_ui.py", "train_screen_model.py", "screen_crop_model.json",
-                         "screen_crop_forest.xml.gz", "requirements.txt", "启动裁剪.cmd", "LICENSE"):
+                         "screen_crop_forest.xml.gz", "screen_crop_reflection.xml.gz", "requirements.txt", "启动裁剪.cmd", "LICENSE"):
             self.assertIn(required, names)
         excluded = {"原图", "结果", "结果2", "识别提升结果", ".crop-env", ".venv", "dist", "github-release"}
         self.assertTrue(all(not excluded.intersection(Path(name).parts) for name in names))

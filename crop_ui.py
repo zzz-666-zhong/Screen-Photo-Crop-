@@ -82,6 +82,58 @@ class CropSelection:
         return self.backend.order_corners(np.float32(self.points)), self.preview.copy()
 
 
+@dataclass
+class ImageNavigation:
+    """Zoom/pan only the view; crop points always remain in source pixels."""
+
+    zoom: float = 1.
+    center: tuple | None = None
+
+    def reset(self):
+        self.zoom, self.center = 1., None
+
+    def viewport(self, image_size, canvas_size):
+        iw, ih = image_size
+        cw, ch = canvas_size
+        scale = ImageViewport.fit(image_size, canvas_size).scale * self.zoom
+        width, height = max(1, round(iw*scale)), max(1, round(ih*scale))
+        cx, cy = self.center or (iw/2, ih/2)
+        def position(size, canvas, center):
+            if size <= canvas-48:
+                return (canvas-size)/2
+            return min(24., max(canvas-24.-size, canvas/2-center*scale))
+        x, y = position(width, cw, cx), position(height, ch, cy)
+        self.center = ((cw/2-x)/scale, (ch/2-y)/scale)
+        return ImageViewport(scale, x, y, width, height)
+
+    def zoom_at(self, factor, anchor, image_size, canvas_size):
+        view = self.viewport(image_size, canvas_size)
+        cw, ch = canvas_size
+        ax, ay = anchor
+        point = view.to_image(ax, ay)
+        if point is None:
+            ax, ay = cw/2, ch/2
+            point = self.center
+        new_zoom = min(16., max(1., self.zoom*factor))
+        scale = view.scale*new_zoom/self.zoom
+        self.center = (point[0]-(ax-cw/2)/scale, point[1]-(ay-ch/2)/scale)
+        self.zoom = new_zoom
+
+    def pan(self, dx, dy, image_size, canvas_size):
+        view = self.viewport(image_size, canvas_size)
+        self.center = (self.center[0]-dx/view.scale, self.center[1]-dy/view.scale)
+
+    def focus(self, points, image_size, canvas_size):
+        if len(points) < 2:
+            return
+        low, high = np.min(points, axis=0), np.max(points, axis=0)
+        size = np.maximum(high-low, 8)
+        scale = min(max(1, canvas_size[0]-64)/size[0],
+                    max(1, canvas_size[1]-64)/size[1]) * .8
+        self.zoom = min(16., max(1., scale/ImageViewport.fit(image_size, canvas_size).scale))
+        self.center = tuple((low+high)/2)
+
+
 class CropWorkspace:
     BG = "#f3f5fa"
     TEXT = "#18243b"
@@ -121,6 +173,9 @@ class CropWorkspace:
         self.source_pil = self.preview_pil = None
         self.source_photo = self.preview_photo = None
         self.viewport = None
+        self.navigation = ImageNavigation()
+        self.pan_anchor = None
+        self.space_down = False
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="screen-detection")
         self.action = tk.StringVar(master=self.root, value="pending")
         self.status = tk.StringVar(value="选择文件夹和裁剪模式，开始处理 / Choose folders and a mode")
@@ -149,6 +204,7 @@ class CropWorkspace:
         style.configure("Hint.TLabel", foreground=self.MUTED, font=("Microsoft YaHei UI", 9))
         style.configure("Title.TLabel", font=("Microsoft YaHei UI", 20, "bold"))
         style.configure("TButton", font=("Microsoft YaHei UI", 10), padding=(14, 9), relief="flat")
+        style.configure("View.TButton", font=("Microsoft YaHei UI", 9), padding=(6, 4))
         style.configure("Primary.TButton", background=self.ACCENT, foreground="white", borderwidth=0)
         style.map("Primary.TButton", background=[("disabled", "#c8ccdf"), ("active", "#4338ca")])
         style.configure("TEntry", padding=8, fieldbackground="white", font=("Microsoft YaHei UI", 10))
@@ -229,19 +285,37 @@ class CropWorkspace:
         panes = ttk.Frame(self.editor)
         panes.pack(fill="both", expand=True)
         panes.columnconfigure((0,1), weight=1, uniform="images")
-        panes.rowconfigure(1, weight=1)
+        panes.rowconfigure(2, weight=1)
         ttk.Label(panes, text="01   原图 · 点击重选四角 / Original · Click to reselect").grid(row=0,column=0,sticky="w",pady=(0,8))
         ttk.Label(panes, text="02   裁剪预览 / Crop preview").grid(row=0,column=1,sticky="w",pady=(0,8),padx=(14,0))
+        navigation = ttk.Frame(panes)
+        navigation.grid(row=1,column=0,sticky="w",pady=(0,6))
+        self.zoom_label = tk.StringVar(value="1.0×")
+        for label, command in (("−",lambda:self.zoom_source(1/1.25)),
+                               ("+",lambda:self.zoom_source(1.25)),
+                               ("适应 Fit",self.fit_source),("选区 Focus",self.focus_source)):
+            ttk.Button(navigation,text=label,command=command,style="View.TButton").pack(side="left",padx=(0,4))
+        ttk.Label(navigation,textvariable=self.zoom_label,style="Hint.TLabel").pack(side="left",padx=4)
         self.source_canvas = tk.Canvas(panes, background="#111c30", highlightthickness=0, width=400, height=350)
         self.preview_canvas = tk.Canvas(panes, background="white", highlightthickness=1, highlightbackground="#dfe5ee", width=400, height=350)
-        self.source_canvas.grid(row=1,column=0,sticky="nsew")
-        self.preview_canvas.grid(row=1,column=1,sticky="nsew",padx=(14,0))
+        self.source_canvas.grid(row=2,column=0,sticky="nsew")
+        self.preview_canvas.grid(row=1,column=1,rowspan=2,sticky="nsew",padx=(14,0))
+        ttk.Label(panes,text="滚轮缩放 · 空格/中键拖移 / Wheel zoom · Space/middle drag",style="Hint.TLabel").grid(row=3,column=0,sticky="w",pady=(5,0))
         self.source_canvas.bind("<Configure>", lambda e: self.render_source())
         self.preview_canvas.bind("<Configure>", lambda e: self.render_preview())
         self.source_canvas.bind("<Button-1>", self._click)
         self.source_canvas.bind("<B1-Motion>", self._drag)
         self.source_canvas.bind("<ButtonRelease-1>", self._release)
         self.source_canvas.bind("<Button-3>", lambda e: self.undo())
+        self.source_canvas.bind("<MouseWheel>", self._wheel)
+        self.source_canvas.bind("<Button-4>", lambda e:self.zoom_source(1.25,(e.x,e.y)))
+        self.source_canvas.bind("<Button-5>", lambda e:self.zoom_source(1/1.25,(e.x,e.y)))
+        self.source_canvas.bind("<Button-2>", self._pan_start)
+        self.source_canvas.bind("<B2-Motion>", self._pan_move)
+        self.source_canvas.bind("<ButtonRelease-2>", self._pan_end)
+        self.source_canvas.bind("<KeyPress-space>", lambda e:self._space(True))
+        self.source_canvas.bind("<KeyRelease-space>", lambda e:self._space(False))
+        self.source_canvas.bind("<FocusOut>", lambda e:self._space(False))
         self.preview_detail = tk.StringVar(value="等待四角 / Waiting for corners")
         ttk.Label(self.editor, textvariable=self.preview_detail, style="Hint.TLabel").pack(anchor="e", pady=8)
         toolbar = ttk.Frame(self.editor)
@@ -318,6 +392,9 @@ class CropWorkspace:
         self.selection = CropSelection(image, args, self.backend)
         self.drag_index = None
         self.reselect_point = None
+        self.navigation.reset()
+        self.pan_anchor = None
+        self.space_down = False
         self.source_pil = Image.fromarray(image[:,:,::-1])
         self.preview_pil = None
         self.action.set("pending")
@@ -391,10 +468,16 @@ class CropWorkspace:
         canvas.delete("all")
         if self.source_pil is None:
             return
-        self.viewport = ImageViewport.fit(self.source_pil.size, (canvas.winfo_width(),canvas.winfo_height()))
+        canvas_size = (max(1,canvas.winfo_width()),max(1,canvas.winfo_height()))
+        self.viewport = self.navigation.viewport(self.source_pil.size, canvas_size)
         view = self.viewport
-        self.source_photo = ImageTk.PhotoImage(self.source_pil.resize((view.width,view.height),Image.Resampling.LANCZOS),master=self.root)
-        canvas.create_image(view.x,view.y,image=self.source_photo,anchor="nw")
+        # Render only the visible canvas, not a potentially enormous zoomed bitmap.
+        visible = self.source_pil.transform(canvas_size, Image.Transform.AFFINE,
+                    (1/view.scale,0,-view.x/view.scale,0,1/view.scale,-view.y/view.scale),
+                    resample=Image.Resampling.BICUBIC,fillcolor=(17,28,48))
+        self.source_photo = ImageTk.PhotoImage(visible,master=self.root)
+        canvas.create_image(0,0,image=self.source_photo,anchor="nw")
+        self.zoom_label.set(f"{self.navigation.zoom:.1f}×")
         if self.selection is None:
             return
         points = [view.to_canvas(p) for p in self.selection.points]
@@ -417,6 +500,8 @@ class CropWorkspace:
         canvas.create_image(view.x,view.y,image=self.preview_photo,anchor="nw")
 
     def _click(self, event):
+        if self.space_down:
+            return self._pan_start(event)
         if self.selection is None or self.future is not None or not self.busy:
             return
         point = self.viewport.to_image(event.x,event.y)
@@ -438,6 +523,8 @@ class CropWorkspace:
         self._selection_changed()
 
     def _drag(self, event):
+        if self.pan_anchor is not None:
+            return self._pan_move(event)
         if self.drag_index is None:
             return
         point = self.viewport.to_image(event.x,event.y)
@@ -452,6 +539,8 @@ class CropWorkspace:
             self.render_source()
 
     def _release(self, event):
+        if self.pan_anchor is not None:
+            return self._pan_end(event)
         if self.drag_index is not None:
             self.drag_index = None
             if self.reselect_point is not None:
@@ -461,6 +550,61 @@ class CropWorkspace:
             else:
                 self.selection.refresh()
             self._selection_changed()
+
+    def _source_size(self):
+        return (max(1,self.source_canvas.winfo_width()),max(1,self.source_canvas.winfo_height()))
+
+    def zoom_source(self, factor, anchor=None):
+        if self.source_pil is None or self.drag_index is not None or self.pan_anchor is not None:
+            return "break"
+        size = self._source_size()
+        self.navigation.zoom_at(factor,anchor or (size[0]/2,size[1]/2),self.source_pil.size,size)
+        self.render_source()
+        self.source_canvas.focus_set()
+        return "break"
+
+    def _wheel(self, event):
+        if event.delta:
+            steps = event.delta/120 if abs(event.delta)>=120 else np.sign(event.delta)
+            return self.zoom_source(1.25**np.clip(steps,-4,4),(event.x,event.y))
+        return "break"
+
+    def fit_source(self):
+        if self.source_pil is not None and self.drag_index is None and self.pan_anchor is None:
+            self.navigation.reset()
+            self.render_source()
+            self.source_canvas.focus_set()
+
+    def focus_source(self):
+        if self.selection is not None and self.drag_index is None and self.pan_anchor is None:
+            self.navigation.focus(self.selection.points,self.source_pil.size,self._source_size())
+            self.render_source()
+            self.source_canvas.focus_set()
+
+    def _space(self, pressed):
+        self.space_down = pressed
+        self.source_canvas.configure(cursor="fleur" if pressed or self.pan_anchor else "")
+        return "break"
+
+    def _pan_start(self, event):
+        if self.source_pil is not None and self.drag_index is None:
+            self.source_canvas.focus_set()
+            self.pan_anchor = (event.x,event.y)
+            self.source_canvas.configure(cursor="fleur")
+        return "break"
+
+    def _pan_move(self, event):
+        if self.pan_anchor is not None:
+            dx,dy = event.x-self.pan_anchor[0],event.y-self.pan_anchor[1]
+            self.navigation.pan(dx,dy,self.source_pil.size,self._source_size())
+            self.pan_anchor = (event.x,event.y)
+            self.render_source()
+        return "break"
+
+    def _pan_end(self, event):
+        self.pan_anchor = None
+        self.source_canvas.configure(cursor="fleur" if self.space_down else "")
+        return "break"
 
     def _shortcut(self, event, callback):
         if self.busy and event.widget.winfo_class() not in {"TEntry","Entry","Text"}:

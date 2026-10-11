@@ -16,9 +16,9 @@ opencv-python>=4.8,<5
 Pillow>=10,<13
 ```
 
-统一工作台和文件夹选择窗口需要 Tkinter 与桌面环境。请将主程序与两个模型文件放在同一目录，模型 `.xml.gz` 无需解压。
+统一工作台和文件夹选择窗口需要 Tkinter 与桌面环境。请将主程序与三个模型文件（JSON 元数据和两份压缩权重）放在同一目录，模型 `.xml.gz` 无需解压。
 
-The unified workspace and folder dialogs require Tkinter and a desktop session. Keep the main script and both model files together. Do not decompress the `.xml.gz` model.
+The unified workspace and folder dialogs require Tkinter and a desktop session. Keep the main script and all three model files (JSON metadata and two compressed forests) together. Do not decompress the `.xml.gz` model.
 
 在项目目录打开 PowerShell。首次安装，或迁移到新电脑后，创建独立环境：
 
@@ -44,6 +44,21 @@ Double-click **`启动裁剪.cmd`**, or run the command below. Direct execution 
 无参数启动进入设置页：填写原图和结果目录，选择自动审核、手动四角或失败补裁，并选择完整图片或正方形 1:1。失败补裁使用上次结果总目录。批次完成后留在同一页面，点击返回设置可开始下一批。
 
 With no arguments, the startup page lets you choose folders, Review/Manual/Retry, and Full picture/Square 1:1. Retry uses the previous result root. Completion stays on the same page; Settings starts another batch.
+
+## 放大、拖移与精确选四角 / Zoom, pan, and precise corners
+
+审核、手动和失败补裁共用左侧原图的缩放控件。滚轮上/下围绕鼠标放大/缩小，`+` 和 `−` 按钮围绕视野中心缩放，范围为适应窗口的 1–16 倍。右侧始终显示完整裁剪结果。
+
+Review, Manual, and Retry share the source-view controls. Wheel up/down zooms around the pointer; `+` and `−` zoom around the view center. The range is 1–16 times the fitted view. The right pane shows the complete crop.
+
+1. 等待识别结束后，点击“选区 Focus”放大已有角点区域（至少两个点）；没有选点时先用滚轮或 `+`。 / After detection, click Focus to enlarge the selected region (at least two points); otherwise use the wheel or `+` first.
+2. 按住空格并用左键拖动原图，或使用中键拖动，查看目标的其他边缘。平移不会重选四角。 / Hold Space and left-drag, or middle-drag, to inspect other edges; panning preserves corners.
+3. 在放大原图上依次点击四角；已有完整框时，直接单击即可从该位置重选。按住已有角点拖动可微调，松开后更新预览。 / Click four corners in the enlarged view. A click on a completed selection starts over at that position. Drag handles to adjust; release to refresh the preview.
+4. 点击“适应 Fit”恢复全图，检查右侧结果，按一次 Enter 保存并下一张。新照片自动恢复全图。 / Click Fit, inspect the preview, and press Enter once to save and advance; the next photo starts fitted.
+
+缩放只改变显示，原始角点坐标、输出像素和清黑边设置不受缩放倍率影响。重新裁剪当前图片时保留倍率，方便重复选点。
+
+Zoom changes only display: source corner coordinates, output pixels, and trim settings are independent of magnification. Re-cropping the same photo retains zoom for convenient reselection.
 
 ## 2. 常用命令 / Common commands
 
@@ -202,7 +217,7 @@ Exit codes: `0` means no processing errors, `1` indicates image-processing error
 | OpenCV 缺少 `ml.RTrees_create` | 当前解释器的 OpenCV 不兼容。使用启动器自动准备 OpenCV 4.x 独立环境；直接运行脚本也会检测并切换环境。 / The active OpenCV build is incompatible. The launcher prepares an isolated OpenCV 4.x environment; direct execution also detects the issue and switches environments. |
 | 初次下载的目录没有 `.crop-env` / Fresh download has no `.crop-env` | 这是正常情况，双击 `启动裁剪.cmd` 即可创建并安装；只安装可用 `安装环境.cmd`。 / This is expected; the launcher creates/installs it, or use the setup-only entry point. |
 | 双击 `.py` 打开编辑器或选择程序 / Double-clicking `.py` opens an editor or app picker | Windows 尚未将 Python 文件关联到解释器。使用 `启动裁剪.cmd`，或在终端运行 `python screen_crop.py`。 / Windows has no interpreter association for Python files. Use the `.cmd` launcher or run `python screen_crop.py` in a terminal. |
-| 缺少模型或特征版本不一致 / Missing or mismatched model | 自动识别需要与代码匹配的两个模型文件；将同一版本的代码与模型放在一起。 / Automatic detection needs both model files matching the code; keep files from the same version together. |
+| 缺少模型或特征版本不一致 / Missing or mismatched model | 自动识别需要与代码匹配的三个模型文件（JSON 元数据和两份压缩权重）；将同一版本的代码与模型放在一起。 / Automatic detection needs all three model files (JSON metadata and two compressed forests) matching the code; keep files from the same version together. |
 | 原有结果没有变化 / Existing crops do not change | 已有输出默认跳过，重新处理时使用 `--overwrite`。 / Existing outputs are skipped; use `--overwrite` to regenerate them. |
 | 深黑边缘、严重反光或目标太小 / Very dark edges, strong reflections, or tiny targets | 候选生成或边缘定位可能失败，使用 `--review`、`--manual` 或失败补裁。 / Proposal generation or edge localization may fail; review, select corners manually, or retry failures. |
 | 灰度图片或几乎无彩色内容 / Grayscale or nearly colorless pictures | 已增加四边边缘和纹理证据，仍可能在真实复杂背景下失败；可手动裁剪。 / Four-border and texture evidence is supported, but complex real backgrounds may still fail; use manual cropping. |

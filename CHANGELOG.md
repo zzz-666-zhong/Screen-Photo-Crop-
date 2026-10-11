@@ -1,5 +1,13 @@
 # 更新记录 / Changelog
 
+## 0.3.0 — 2026-10-11
+
+- 原图增加鼠标定位缩放、1–16 倍视野、空格/中键拖移、适应与选区聚焦；放大后选四角仍保存原图坐标，下一张恢复全图。 / Add pointer-anchored 1–16× zoom, Space/middle-button panning, Fit and Focus; corners remain in source coordinates and the next photo starts fitted.
+- 在未标线真实照片上训练反光小目标补充森林，结合局部反光、运动模糊及透视扰动增强；保留通用森林，新增边界细化评分检查。 / Train a reflection specialist on unmarked real photos with glare, motion blur, and perspective augmentation; retain the base forest and guard refinement with learned scores.
+- 训练按拍摄组隔离留出照片，增强仅作用于训练组；新增确定性压力评估及匿名指标。 / Separate holdout captures by group, augment only training inputs, and add deterministic stress evaluation with anonymized metrics.
+- 改用双精度多边形 IoU，修正近共线边界的异常交面积；支持中文路径下的模型序列化。 / Use double-precision polygon IoU to fix invalid intersections near collinear edges and serialize models in Unicode paths.
+- 补充双语缩放操作、训练、评估与模型来源说明。 / Expand bilingual zoom, training, evaluation, and provenance documentation.
+
 ## 0.2.1 — 2026-10-10
 
 - 自动识别预览后直接点击左侧原图重选四角，点击位置作为第一个新点，无需先按“重新裁剪”。手动和失败补裁也支持此操作。 / Click the left original after detection to start a new four-point selection at that position, without pressing Re-crop. Manual and retry workflows support the same interaction.

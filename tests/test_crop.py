@@ -241,6 +241,23 @@ class ModelAndCLITests(unittest.TestCase):
         digest = hashlib.sha256((ROOT / "screen_crop_forest.xml.gz").read_bytes()).hexdigest()
         self.assertIn(digest, (ROOT / "docs/MODEL_CARD.md").read_text(encoding="utf-8"))
 
+    def test_reflection_model_is_compatible_and_has_disjoint_training_groups(self):
+        metadata=json.loads((ROOT/'screen_crop_model.json').read_text(encoding='utf-8'))['reflection']
+        self.assertEqual(metadata['features'],crop.FEATURE_NAMES)
+        self.assertFalse(set(metadata['training_sources']) & set(metadata['holdout_sources']))
+        weights=ROOT/metadata['file']
+        self.assertEqual(hashlib.sha256(weights.read_bytes()).hexdigest(),metadata['weight_sha256'])
+        self.assertEqual(crop.load_scoring_forest(str(weights),weights.stat().st_mtime_ns).getVarCount(),24)
+
+    def test_refinement_rejects_an_interior_edge_with_a_worse_learned_score(self):
+        image,quad=make_scene()
+        interior=quad.mean(axis=0)+(quad-quad.mean(axis=0))*.8
+        forest=type('Scorer',(),{'predict':lambda s,x:(0,np.float32([[.6]]))})()
+        with patch.object(crop,'refine_photo_edges',return_value=interior), \
+                patch.object(crop,'quad_features',return_value=np.zeros(24,np.float32)):
+            result=crop.guarded_refinement(image,quad,forest,.9)
+        np.testing.assert_array_equal(result,quad)
+
     def test_entry_points_work_from_another_directory(self):
         with tempfile.TemporaryDirectory() as directory:
             for script, option in (("screen_crop.py", "--help"),

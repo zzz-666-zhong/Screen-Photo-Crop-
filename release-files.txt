@@ -17,6 +17,7 @@ crop_ui.py
 train_screen_model.py
 screen_crop_model.json
 screen_crop_forest.xml.gz
+screen_crop_reflection.xml.gz
 启动裁剪.cmd
 安装环境.cmd
 使用说明.md
@@ -26,13 +27,17 @@ docs/MODEL_CARD.md
 docs/PUBLISHING.md
 docs/evaluation.csv
 docs/recognition-v020.csv
+docs/reflection-v030.csv
+docs/recognition-v030.csv
 examples/generate_demo.py
 examples/recognition_scenes.py
 examples/dataset.example.json
 scripts/build_release.py
 scripts/evaluate_recognition.py
+scripts/evaluate_dataset.py
 tests/test_crop.py
 tests/test_release.py
 tests/test_startup.py
 tests/test_ui.py
+tests/test_training.py
 release-files.txt

@@ -14,7 +14,7 @@ from train_screen_model import overlap
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--baseline',type=Path,help='Optional screen_crop.py from v0.1.1')
+    parser.add_argument('--baseline',type=Path,help='Optional earlier screen_crop.py using the bundled base forest')
     parser.add_argument('--output',type=Path,default=ROOT/'recognition_metrics.csv')
     args=parser.parse_args()
     if args.output.exists():
@@ -24,7 +24,7 @@ def main():
         spec=importlib.util.spec_from_file_location('recognition_baseline',args.baseline)
         baseline=importlib.util.module_from_spec(spec)
         spec.loader.exec_module(baseline)
-        # Both versions use identical bundled weights; models are not retrained.
+        # Earlier versions use the unchanged base forest beside the current script.
         baseline.__file__=str(ROOT/'screen_crop.py')
     rows=[]
     for kind in KINDS:
