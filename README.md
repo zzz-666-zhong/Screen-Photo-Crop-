@@ -4,7 +4,7 @@
 
 Extract complete pictures from photographed screens with automatic corner detection, perspective correction, and dark-content preservation. Includes a pretrained model, a single-page preview, Enter-to-save review, manual re-cropping, and square mode.
 
-**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.3.0**
+**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.4.0**
 
 [使用指南 / Usage](docs/USAGE.md) · [模型与评估 / Model & evaluation](docs/MODEL_CARD.md) · [继续训练 / Training](docs/TRAINING.md) · [发布指南 / Publishing](docs/PUBLISHING.md)
 
@@ -22,6 +22,8 @@ Extract complete pictures from photographed screens with automatic corner detect
 | 滚轮或 +/− 缩放原图，空格+左键/中键拖移，选区 Focus 放大角点，适应 Fit 恢复全图。 | Zoom with the wheel or +/−, pan with Space+left drag or middle drag, focus corners, and fit the full image. |
 | 开始时可选择正方形模式，按完整四角透视校正为 1:1。 | Select square mode at startup to rectify the complete four-corner region to 1:1. |
 | 灰度与低对比度候选增加四边和纹理证据，保留原彩色识别路径。 | Add four-border and texture evidence for grayscale/low-contrast candidates while retaining the original color path. |
+| 保存原图标识和最终四角，记录人工修改及版本信息，导出人工确认标签用于后续训练。 | Record source identity, final corners, edit flags, and versions; export reviewed labels for later training. |
+| 上一张修改、可点击缩略图、记忆目录/模式、暂停后恢复草稿和批次进度。 | Previous-image editing, clickable thumbnails, remembered settings, and resumable drafts/progress. |
 | 支持子目录、中文路径、EXIF 方向校正和常见图像格式。 | Supports subfolders, Unicode paths, EXIF orientation, and common image formats. |
 | 输出 PNG、成功/失败分目录、CSV 记录和可选识别框预览。 | Produces PNG crops, separate success/failure folders, CSV reports, and optional overlays. |
 
@@ -366,9 +368,9 @@ D:\裁剪结果\
 
 Successful crops are PNGs named with the original extension plus `_cropped.png`, so `photo.jpg` and `photo.png` cannot collide. `_debug` contains originals with corner overlays; actual crops are in `裁剪成功`. Source orientation follows EXIF metadata, and initial source files are unchanged.
 
-CSV 可用文本编辑器或 Excel 打开，包含 `input`（相对原文件路径）、`output`（相对结果路径）、`status`（状态）、`detail`（尺寸或原因）。每次运行会重写对应报告；若需要留存历史，请在下一次运行前复制报告。
+CSV 可用文本编辑器或 Excel 打开，包含 `input`（相对原文件路径）、`output`（相对结果路径）、`status`（状态）、`detail`（尺寸或原因）。每次保存更新对应条目；续裁保留已处理记录，新批次重建报告。若需历史快照，请先复制报告。
 
-Open CSV reports in a text editor or Excel. Their columns are `input` (relative source path), `output` (relative result path), `status`, and `detail` (dimensions or explanation). Each run replaces its report; copy it before another run if you need history.
+Open CSV reports in a text editor or Excel. Their columns are `input` (relative source path), `output` (relative result path), `status`, and `detail` (dimensions or explanation). Each save updates its row; Resume retains processed records and a new batch rebuilds the report. Copy reports for historical snapshots.
 
 | 状态 / Status | 含义与下一步 / Meaning and next step |
 |---|---|
@@ -376,6 +378,7 @@ Open CSV reports in a text editor or Excel. Their columns are `input` (relative 
 | `existing` | 对应成功文件已经存在，未重新处理。需要重做时开启覆盖。 / A successful output already exists and was skipped; enable Overwrite to redo it. |
 | `skipped` | 用户主动跳过，失败副本保留用于补裁。 / User skipped the photo; the failure copy remains for retry. |
 | `error` | 读取、识别或处理失败，详情见 `detail`；可尝试手动补裁。 / Loading, detection, or processing failed; see `detail` and try manual retry. |
+| `paused` | 当前草稿及进度已保留，点击继续恢复。 / Current draft/progress retained for Resume. |
 | `cancelled` | 用户停止本批；当前及剩余图片没有因此导出到失败目录。 / User stopped the batch; this does not copy current/remaining photos into failures. |
 
 ### 黑边与内缩 / Black margins and inset
@@ -397,19 +400,60 @@ python screen_crop.py "D:\拍屏照片" "D:\裁剪结果" --review --inset 0.005
 
 Automatic edge refinement itself adds an inward adjustment of about 0.5–2 detection-image pixels to reduce interpolation fringes. This is separate from `--inset`; manual corners bypass automatic refinement. Square mode keeps the final output at 1:1 after trimming/inset. See the [usage guide](docs/USAGE.md) for parameter ranges.
 
-### 中途结束后如何继续 / Resuming after stopping
+### 批次管理与人工标签 / Batch management and reviewed labels
 
-点击“结束”或关闭窗口会停止本批，已保存结果保留，当前及剩余图片不会自动变成失败副本。要继续这些未处理的照片，再使用**相同的原照片目录和结果目录**启动审核或手动批次，保持覆盖关闭：已有成功结果会跳过，其余照片继续处理。若原照片在子目录中，仍需加 `--recursive`。
+#### 返回修改与缩略图 / Revisiting and thumbnails
 
-Stop or close ends the batch and retains saved crops; current/remaining photos do not automatically become failure copies. Resume with **the same source and result folders**, using Review or Manual with Overwrite off. Successful outputs are skipped and other photos are processed. Keep `--recursive` if sources are in subfolders.
+底部“上一张修改 / Previous”返回上一张原照片，载入已保存四角。底部缩略图列表可横向滚动，单击任一图片可以跳转；已有结果显示裁剪缩略图，未完成图片显示原图，当前项以紫色边框突出。批次完成后仍可点击缩略图重新修改。
+
+Previous reopens the previous original with saved corners. Scroll the bottom thumbnail strip horizontally and click any image to jump. Saved items show crop thumbnails, pending items show originals, and the current item has a purple border. Thumbnails remain editable after batch completion.
+
+四角恢复适用于 v0.4.0 保存过标签的图片；旧版只有 PNG、没有四角记录时，重新审核会识别边界，手动模式需要重新选点。 / Corner restoration requires labels saved by v0.4.0; older PNG-only results need detection in Review or new points in Manual.
+
+跳转会保留当前未保存选点为草稿；旧 PNG 和已确认标签只在再次按 Enter 或“保存并下一张”后更新。返回旧结果后选择“跳过”会放弃该次编辑并保留旧结果。保存后继续处理后面的未完成图片；提前跳到后面时，批末会回到遗漏的待处理图片。
+
+Navigation retains unsaved points as drafts. Old PNGs and confirmed labels change only after Save & next or Enter. Skipping a revisited crop discards those edits while retaining its previous output. Saving continues through remaining work; jumping forward does not abandon earlier pending items.
+
+#### 记忆设置、暂停与恢复 / Remembered settings, pause, and resume
+
+程序记住最近一次原图目录、结果目录、处理方式、图片形状及选项，下次启动自动填写。“暂停”保存当前草稿和进度，随后点击“继续”，或在重新启动的设置页点击“继续上次批次”。“结束”和关闭窗口也保存恢复记录。续裁使用记录中的目录和全部裁剪选项，包括 CLI 设置的内缩、清黑边阈值等。
+
+The application remembers folders, workflow, shape, and options. Pause saves the current draft and progress. Click Resume, or restart and select Resume on the settings page. Stop and Close also retain a checkpoint. Resuming restores recorded folders and all crop options, including CLI inset and trimming thresholds.
+
+窗口设置保存在项目目录 `.crop-settings.json`；普通批次进度在结果目录 `crop_session.json`，失败补裁使用 `manual_crop_session.json`。每次确认保存后立即更新进度与 CSV。新批次重建进度；续裁保留逐张记录并更新对应条目。运行同一结果目录时请使用一个工作台，原照片应保持原位置。
+
+Preferences live in `.crop-settings.json` beside the application. Normal checkpoints are `crop_session.json` in the result folder; retry uses `manual_crop_session.json`. Saves immediately update progress and CSV. New batches rebuild progress, while Resume retains per-image records. Use one workspace per result directory and retain originals in their locations.
+
+命令行续裁须使用相同目录和原选项，再加 `--resume`：
+
+To resume from the CLI, retain the same folders and options and add `--resume`:
 
 ```powershell
-python screen_crop.py "D:\拍屏照片" "D:\裁剪结果" --review
+python screen_crop.py "D:\拍屏照片" "D:\裁剪结果" --review --square --resume
+python screen_crop.py "D:\裁剪结果" --retry-failed --resume
 ```
 
-只有已经进入“裁剪失败”的副本，才使用 `python screen_crop.py "D:\裁剪结果" --retry-failed`。如要重做已有成功文件，用 `--review --overwrite`；在确认保存之前，旧成功文件保持不变。
+#### 将人工确认结果导出为训练标签 / Exporting reviewed training labels
 
-Use `python screen_crop.py "D:\裁剪结果" --retry-failed` only for copies already in `裁剪失败`. To redo existing successful crops, use `--review --overwrite`; old outputs stay unchanged until a new crop is saved.
+每次确认保存，结果目录 `crop_labels.json` 记录原图路径及 SHA-256、EXIF 校正后的原图四角坐标、输出路径、是否人工修改、程序/模型版本及裁剪选项。审核中直接接受自动框也属于人工确认；手动选点和拖动角点标记为人工修改。无人值守自动结果标记为未确认，导出时排除。
+
+Every confirmed save records source path/hash, source-pixel corners after EXIF correction, output path, manual-edit flag, application/model versions, and crop options in `crop_labels.json`. Accepting a reviewed automatic proposal counts as confirmation; manual selection/handle changes mark it edited. Unattended automatic results are unconfirmed and excluded from export.
+
+点击设置页或工作台“导出确认标签 / Export labels”，选择独立 JSON 文件（默认 `reviewed_labels.json`）。也可在裁剪命令加 `--export-labels`，批次结束后导出已确认条目：
+
+Click Export labels on either page and choose a separate JSON file (default `reviewed_labels.json`). Alternatively, add `--export-labels` to export confirmed entries after processing:
+
+```powershell
+python screen_crop.py "D:\拍屏照片" "D:\裁剪结果" --review --export-labels "D:\裁剪结果\reviewed_labels.json"
+```
+
+同一原图按内容哈希去重，重新确认后更新最终标签；无人值守处理不会覆盖已确认标签。导出前核对原图哈希，原图丢失或改变时提示错误。失败补裁优先关联原照片；找不到原照片时，在结果目录 `label_sources/` 保留副本，供以后训练读取，再移除已补裁的失败副本。
+
+Labels are deduplicated by source hash and updated after reconfirmation. Unattended processing cannot overwrite confirmed labels. Export verifies source hashes and reports missing/changed originals. Retry resolves the retained original when possible; otherwise, it keeps a copy under `label_sources/` for future training before removing the successful failure copy.
+
+导出 JSON 可由 `train_screen_model.py` 读取，全部初始标为 `split: train`。训练前仍须检查标签，并将不同拍摄组划分为训练与留出验证；相同图片及其衍生图应属于同一组。导出不自动训练或替换现有模型。真实图片、标签、路径和批次记录仅保存在本地，不在发布文件清单中。详情见 [继续训练](docs/TRAINING.md)。
+
+The exported JSON is readable by `train_screen_model.py`, initially with every row set to `split: train`. Inspect labels and reserve distinct capture groups for holdout before fitting; related derivatives must share a group. Export does not fit or replace models. Photos, labels, paths, and checkpoints stay local and are excluded from the public file manifest. See [training](docs/TRAINING.md).
 
 ## 常见问题 / Troubleshooting
 
@@ -484,6 +528,7 @@ Validation images were excluded from fitting but share some scenes/content with 
 ```text
 screen_crop.py                  Detection, correction, batch processing
 crop_ui.py                      Single-page desktop workspace
+batch_state.py                  Checkpoints and reviewed training labels
 launch_crop.py                  Isolated environment setup and launcher
 train_screen_model.py           Training entry point
 screen_crop_model.json          Model metadata

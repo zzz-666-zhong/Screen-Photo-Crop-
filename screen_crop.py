@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import gzip
 from functools import lru_cache
 import shutil
@@ -28,7 +27,7 @@ except ImportError as exc:
     ) from exc
 
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 SUCCESS_FOLDER = "裁剪成功"
@@ -521,6 +520,8 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--inset", type=float, default=0, help="Extra inward crop per side, fraction (default: 0)")
     result.add_argument("--overwrite", action="store_true", help="Replace existing cropped images")
     result.add_argument("--debug", action="store_true", help="Save detected-corner previews in _debug")
+    result.add_argument("--resume", action="store_true", help="Resume a saved batch with the same folders and options")
+    result.add_argument("--export-labels", type=Path, help="Export human-confirmed corners to a training JSON after processing")
     return result
 
 
@@ -566,6 +567,16 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
                    if p.is_file() and p.suffix.lower() in EXTENSIONS
                    and not (destination.is_relative_to(source)
                             and p.resolve().is_relative_to(destination)))
+    if args.retry_failed and args.resume:
+        from batch_state import read_json
+        checkpoint=read_json(destination/'manual_crop_session.json')
+        if isinstance(checkpoint,dict):
+            known={p.relative_to(source).as_posix() for p in files}
+            for name in checkpoint.get('files',[]):
+                path=(source/name).resolve()
+                if name not in known and path.is_relative_to(source) and checkpoint.get('records',{}).get(name,{}).get('status')=='ok':
+                    files.append(path)
+            files.sort()
     if not files:
         if args.retry_failed:
             print("No pending failed photos. All done.")
@@ -576,32 +587,86 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
         check_model_runtime()
     success_dir.mkdir(parents=True, exist_ok=True)
     failure_dir.mkdir(parents=True, exist_ok=True)
-    report = []
-    for index, path in enumerate(files, 1):
+    from batch_state import BatchSession, LabelStore, fingerprint, label_source
+    labels = LabelStore(destination)
+    session = BatchSession(destination, source, files, args, __version__)
+    interactive = args.manual or args.review or args.retry_failed
+    if workspace is not None and hasattr(workspace, 'begin_batch'):
+        workspace.begin_batch(session, labels, args)
+    forced = getattr(args, 'start_index', None) is not None
+    if forced: session.index = min(max(0,args.start_index),len(files)-1)
+    metadata_path = Path(__file__).with_name('screen_crop_model.json')
+    import json
+    try:
+        model = json.loads(metadata_path.read_text(encoding='utf-8'))
+    except (ValueError,OSError):
+        model = {}
+    if not isinstance(model,dict):model={}
+    model_version = dict(base=model.get('version'), reflection=model.get('reflection',{}).get('version'),
+                         reflection_sha256=model.get('reflection',{}).get('weight_sha256'))
+    while True:
+        if session.index >= len(files):
+            session.index = session.first_pending()
+            if session.index >= len(files): break
+        index, path = session.index, files[session.index]
         relative = path.relative_to(source)
         # Include the original extension so automatic and retry runs agree on names.
         target = success_dir / relative.with_name(relative.name + "_cropped.png")
         failed_copy = failure_dir / relative
         status, detail = "error", ""
+        name = relative.as_posix()
+        record = session.records.get(name,{})
+        digest = ''
+        corners = None
+        modified = record.get('manual_modified',False)
+        actual_source = path
+        if args.retry_failed and not path.exists():
+            retained=labels.data['items'].get(record.get('source_sha256'),{})
+            if retained.get('image'): actual_source=Path(retained['image'])
+        if name in session.drafts: forced=True
+        if args.resume and not forced and not session.pending(index):
+            unchanged = actual_source.exists() and (not record.get('source_sha256') or fingerprint(actual_source) == record['source_sha256'])
+            if unchanged and (record['status'] not in ('ok','existing') or target.exists()):
+                session.index += 1
+                continue
+            forced = True
+        if workspace is not None and hasattr(workspace, 'prepare_item'):
+            workspace.prepare_item(index)
         try:
-            if target.exists() and not args.overwrite:
+            if target.exists() and not args.overwrite and not forced:
                 status, detail = "existing", "Output already exists; use --overwrite to replace."
             else:
-                image = load_image(path)
-                interactive = args.manual or args.review or args.retry_failed
+                digest = fingerprint(actual_source)
+                image = load_image(actual_source)
                 corners = None if interactive else detect_screen(image, square=args.square)
                 cropped = None
-                if args.manual or args.review or args.retry_failed:
-                    reviewed = review_and_crop(image, corners, args, f"{index}/{len(files)}",
+                if interactive:
+                    prior_label=labels.data['items'].get(digest,{})
+                    if (forced or args.resume) and record.get('source_sha256')!=digest and prior_label.get('quad'):
+                        record=dict(record,quad=prior_label['quad'],source_sha256=digest,
+                                    manual_modified=prior_label['manual_modified'])
+                    if record.get('source_sha256') == digest and record.get('quad'):
+                        corners = np.float32(record['quad'])
+                    if workspace is not None and hasattr(workspace, 'restore_item'):
+                        workspace.restore_item(digest, record)
+                    reviewed = review_and_crop(image, corners, args, f"{index+1}/{len(files)}",
                                                workspace=workspace, filename=str(relative))
+                    decision = getattr(workspace, 'batch_decision', '')
+                    if decision == 'jump':
+                        session.index = workspace.requested_index
+                        session.persist()
+                        forced = True
+                        continue
                     if reviewed is None:
-                        if workspace.aborted:
+                        if decision == 'pause':
+                            status, detail = 'paused', 'Batch paused; the current selection is retained.'
+                        elif workspace.aborted:
                             status, detail = "cancelled", "Batch stopped; remaining photos were not processed."
                         else:
                             status, detail = "skipped", "Skipped by user."
                     else:
                         corners, cropped = reviewed
-                if status not in ("skipped", "cancelled"):
+                if status not in ("skipped", "cancelled", "paused"):
                     if corners is None:
                         raise ValueError("No screen rectangle detected. Retry RESULT_ROOT --retry-failed.")
                     if cropped is None:
@@ -614,6 +679,13 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
                     finally:
                         temporary.unlink(missing_ok=True)
                     status, detail = "ok", f"{cropped.shape[1]}x{cropped.shape[0]}"
+                    information = workspace.selection_metadata() if interactive and hasattr(workspace,'selection_metadata') else {}
+                    modified = information.get('manual_modified',bool(args.manual or args.retry_failed))
+                    original = label_source(actual_source,destination,relative,args.retry_failed,digest)
+                    labels.save(original,corners.astype(float).tolist(),source_sha256=digest,
+                        image_size=(image.shape[1],image.shape[0]),output=str(target.relative_to(destination)),
+                        confirmed=interactive,modified=modified,version=__version__,model_version=model_version,
+                        square=args.square,options=session.options)
                     if args.debug:
                         debug = image.copy()
                         cv2.polylines(debug, [np.round(corners).astype(np.int32)], True, (0, 255, 0),
@@ -626,7 +698,11 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
                             detail += f"; debug preview unavailable: {exc}"
         except Exception as exc:
             status, detail = "error", str(exc)
-        if status in ("error", "skipped") and not args.retry_failed:
+        # Revisiting a saved crop never discards it merely because edits were skipped.
+        if status == 'skipped' and target.exists() and (record.get('saved') or record.get('status') in ('ok','existing')):
+            status = 'ok' if record.get('quad') else 'existing'
+            detail = 'Previous saved crop retained; unsaved edits discarded.'
+        if status in ("error", "skipped") and not args.retry_failed and not target.exists():
             try:
                 failed_copy.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(path, failed_copy)
@@ -638,19 +714,27 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
                 failed_copy.unlink()
             except OSError as exc:
                 detail += f"; could not remove failure copy: {exc}"
-        print(f"[{index}/{len(files)}] {status}: {relative} {detail}", flush=True)
-        report.append([str(relative), str(target.relative_to(destination)), status, detail])
+        print(f"[{index+1}/{len(files)}] {status}: {relative} {detail}", flush=True)
+        extra = dict(saved=target.exists())
+        if digest: extra['source_sha256']=digest
+        if status == 'ok' and corners is not None:
+            extra.update(quad=corners.astype(float).tolist(),manual_modified=modified)
+        session.record(index,status,str(target.relative_to(destination)),detail,**extra)
         if workspace is not None:
             workspace.record(status, str(relative), detail)
-            if workspace.aborted:
-                break
+        if status in ('cancelled','paused'):
+            session.persist('paused' if status == 'paused' else 'stopped')
+            break
+        session.index += 1
+        forced = False
+        session.persist()
+    if session.index >= len(files): session.persist('complete')
+    session.write_report()
+    if args.export_labels:
+        print(f'Exported {labels.export(args.export_labels)} reviewed labels to {args.export_labels}')
     report_path = destination / ("manual_crop_report.csv" if args.retry_failed else "crop_report.csv")
-    with report_path.open("w", encoding="utf-8-sig", newline="") as stream:
-        writer = csv.writer(stream)
-        writer.writerow(["input", "output", "status", "detail"])
-        writer.writerows(report)
-    errors = sum(row[2] == "error" for row in report)
-    print(f"Done. Saved: {sum(row[2] == 'ok' for row in report)}; errors: {errors}. Report: {report_path}")
+    errors = sum(row['status'] == "error" for row in session.records.values())
+    print(f"Done. Saved: {sum(row['status'] == 'ok' for row in session.records.values())}; errors: {errors}. Report: {report_path}")
     return 1 if errors else 0
 
 

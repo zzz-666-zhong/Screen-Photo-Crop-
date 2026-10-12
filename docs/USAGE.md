@@ -132,11 +132,68 @@ python screen_crop.py "D:\裁剪结果" --retry-failed --square
 | 重新裁剪 / Re-crop · R | 清空当前四角和预览，在同一张原图重新选点。 | Clear corners and preview, then reselect on the same original. |
 | 撤销 / Undo · 右键 / Right click · Backspace | 撤销一个点；重新选四角前不能保存旧预览。 | Undo one point; stale previews cannot be saved. |
 | 跳过 / Skip · Esc | 当前图片进入失败副本目录，继续下一张，不写入新裁剪。 | Copy the skipped source to failures and advance without writing a crop. |
+| 上一张 / Previous | 返回上一张并载入已保存四角，再次保存后更新结果。 | Reopen the previous original with saved corners; save to update. |
+| 暂停 / Pause · 继续 / Resume | 保存当前草稿及进度，恢复后继续选点。 | Retain the current draft and progress, then resume selection. |
 | 结束 / Stop · 关闭窗口 / Close | 停止本批，保留已经保存的结果；当前及剩余图片不导出失败副本。 | Stop the batch and retain saved results; current/remaining photos are not exported as failures. |
 
 审核、手动和失败补裁使用同一工作台。自动批处理不弹出预览。已有输出默认跳过，重新审核时加 `--overwrite`。
 
 Review, manual, and retry modes use the same workspace. Automatic batches have no preview window. Existing outputs are skipped; add `--overwrite` to review them again.
+
+## 批次管理与人工标签 / Batch management and reviewed labels
+
+### 返回修改与缩略图 / Revisiting and thumbnails
+
+底部“上一张修改 / Previous”返回上一张原照片，载入已保存四角。底部缩略图列表可横向滚动，单击任一图片可以跳转；已有结果显示裁剪缩略图，未完成图片显示原图，当前项以紫色边框突出。批次完成后仍可点击缩略图重新修改。
+
+Previous reopens the previous original with saved corners. Scroll the bottom thumbnail strip horizontally and click any image to jump. Saved items show crop thumbnails, pending items show originals, and the current item has a purple border. Thumbnails remain editable after batch completion.
+
+四角恢复适用于 v0.4.0 保存过标签的图片；旧版只有 PNG、没有四角记录时，重新审核会识别边界，手动模式需要重新选点。 / Corner restoration requires labels saved by v0.4.0; older PNG-only results need detection in Review or new points in Manual.
+
+跳转会保留当前未保存选点为草稿；旧 PNG 和已确认标签只在再次按 Enter 或“保存并下一张”后更新。返回旧结果后选择“跳过”会放弃该次编辑并保留旧结果。保存后继续处理后面的未完成图片；提前跳到后面时，批末会回到遗漏的待处理图片。
+
+Navigation retains unsaved points as drafts. Old PNGs and confirmed labels change only after Save & next or Enter. Skipping a revisited crop discards those edits while retaining its previous output. Saving continues through remaining work; jumping forward does not abandon earlier pending items.
+
+### 记忆设置、暂停与恢复 / Remembered settings, pause, and resume
+
+程序记住最近一次原图目录、结果目录、处理方式、图片形状及选项，下次启动自动填写。“暂停”保存当前草稿和进度，随后点击“继续”，或在重新启动的设置页点击“继续上次批次”。“结束”和关闭窗口也保存恢复记录。续裁使用记录中的目录和全部裁剪选项，包括 CLI 设置的内缩、清黑边阈值等。
+
+The application remembers folders, workflow, shape, and options. Pause saves the current draft and progress. Click Resume, or restart and select Resume on the settings page. Stop and Close also retain a checkpoint. Resuming restores recorded folders and all crop options, including CLI inset and trimming thresholds.
+
+窗口设置保存在项目目录 `.crop-settings.json`；普通批次进度在结果目录 `crop_session.json`，失败补裁使用 `manual_crop_session.json`。每次确认保存后立即更新进度与 CSV。新批次重建进度；续裁保留逐张记录并更新对应条目。运行同一结果目录时请使用一个工作台，原照片应保持原位置。
+
+Preferences live in `.crop-settings.json` beside the application. Normal checkpoints are `crop_session.json` in the result folder; retry uses `manual_crop_session.json`. Saves immediately update progress and CSV. New batches rebuild progress, while Resume retains per-image records. Use one workspace per result directory and retain originals in their locations.
+
+命令行续裁须使用相同目录和原选项，再加 `--resume`：
+
+To resume from the CLI, retain the same folders and options and add `--resume`:
+
+```powershell
+python screen_crop.py "D:\拍屏照片" "D:\裁剪结果" --review --square --resume
+python screen_crop.py "D:\裁剪结果" --retry-failed --resume
+```
+
+### 将人工确认结果导出为训练标签 / Exporting reviewed training labels
+
+每次确认保存，结果目录 `crop_labels.json` 记录原图路径及 SHA-256、EXIF 校正后的原图四角坐标、输出路径、是否人工修改、程序/模型版本及裁剪选项。审核中直接接受自动框也属于人工确认；手动选点和拖动角点标记为人工修改。无人值守自动结果标记为未确认，导出时排除。
+
+Every confirmed save records source path/hash, source-pixel corners after EXIF correction, output path, manual-edit flag, application/model versions, and crop options in `crop_labels.json`. Accepting a reviewed automatic proposal counts as confirmation; manual selection/handle changes mark it edited. Unattended automatic results are unconfirmed and excluded from export.
+
+点击设置页或工作台“导出确认标签 / Export labels”，选择独立 JSON 文件（默认 `reviewed_labels.json`）。也可在裁剪命令加 `--export-labels`，批次结束后导出已确认条目：
+
+Click Export labels on either page and choose a separate JSON file (default `reviewed_labels.json`). Alternatively, add `--export-labels` to export confirmed entries after processing:
+
+```powershell
+python screen_crop.py "D:\拍屏照片" "D:\裁剪结果" --review --export-labels "D:\裁剪结果\reviewed_labels.json"
+```
+
+同一原图按内容哈希去重，重新确认后更新最终标签；无人值守处理不会覆盖已确认标签。导出前核对原图哈希，原图丢失或改变时提示错误。失败补裁优先关联原照片；找不到原照片时，在结果目录 `label_sources/` 保留副本，供以后训练读取，再移除已补裁的失败副本。
+
+Labels are deduplicated by source hash and updated after reconfirmation. Unattended processing cannot overwrite confirmed labels. Export verifies source hashes and reports missing/changed originals. Retry resolves the retained original when possible; otherwise, it keeps a copy under `label_sources/` for future training before removing the successful failure copy.
+
+导出 JSON 可由 `train_screen_model.py` 读取，全部初始标为 `split: train`。训练前仍须检查标签，并将不同拍摄组划分为训练与留出验证；相同图片及其衍生图应属于同一组。导出不自动训练或替换现有模型。真实图片、标签、路径和批次记录仅保存在本地，不在发布文件清单中。详情见 [继续训练](TRAINING.md)。
+
+The exported JSON is readable by `train_screen_model.py`, initially with every row set to `split: train`. Inspect labels and reserve distinct capture groups for holdout before fitting; related derivatives must share a group. Export does not fit or replace models. Photos, labels, paths, and checkpoints stay local and are excluded from the public file manifest. See [training](TRAINING.md).
 
 ## 3. 黑边处理与参数 / Black margins and options
 
@@ -169,6 +226,8 @@ When enabled, trimming removes consecutive outer rows/columns with at least 90% 
 | `--max-trim` | `0.48` | 每边黑边清除比例上限，范围 `0–0.49`。 / Per-side black-trim limit, `0–0.49`. |
 | `--inset` | `0` | 额外向内裁剪比例，范围 `0–0.1`，每侧分别应用。 / Extra inward crop fraction, `0–0.1`, applied to each side. |
 | `--overwrite` | 关闭 / Off | 替换已有 PNG 输出。 / Replace existing PNG outputs. |
+| `--resume` | 关闭 / Off | 按保存的进度和原选项续裁。 / Resume saved progress with matching options. |
+| `--export-labels` | 未设置 / Unset | 批次结束后导出人工确认标签到 JSON。 / Export reviewed labels after processing. |
 | `--debug` | 关闭 / Off | 保存带四角轮廓的原图预览。 / Save source-image previews with corner outlines. |
 
 `--manual`、`--review`、`--retry-failed` 三者互斥；`--trim-black` 与 `--no-trim-black` 互斥。
@@ -187,22 +246,26 @@ When enabled, trimming removes consecutive outer rows/columns with at least 90% 
 │   └── 裁剪成功/
 │       └── photo.jpg_cropped.png
 ├── crop_report.csv            # Normal batch report
-└── manual_crop_report.csv     # Created by --retry-failed
+├── manual_crop_report.csv     # Created by --retry-failed
+├── crop_session.json          # Progress + unsaved corners
+├── manual_crop_session.json   # Retry progress
+└── crop_labels.json           # Corners + confirmation metadata
 ```
 
 输出文件名保留原扩展名，例如 `photo.jpg_cropped.png` 与 `photo.png_cropped.png`，避免同名不同格式冲突。读取原图后按 EXIF 方向校正，输出为 RGB PNG；不会修改输入文件。
 
 Output names retain the original extension, such as `photo.jpg_cropped.png` and `photo.png_cropped.png`, preventing collisions between formats. Images are oriented using EXIF metadata and exported as RGB PNG without modifying input files.
 
-CSV 使用带 BOM 的 UTF-8 编码，可在 Excel 中打开，包含 `input`、`output`、`status`、`detail` 四列。每次运行会重写对应报告，不是追加历史记录。
+CSV 使用带 BOM 的 UTF-8 编码，可在 Excel 中打开，包含 `input`、`output`、`status`、`detail` 四列。每次保存更新该图片对应的报告条目。新批次重建报告；`--resume` 保留已处理记录。
 
-CSV reports use UTF-8 with BOM for Excel compatibility and contain `input`, `output`, `status`, and `detail`. Each run replaces its corresponding report rather than appending a history.
+CSV reports use UTF-8 with BOM for Excel compatibility and contain `input`, `output`, `status`, and `detail`. Each save updates its per-image report row. New batches rebuild reports; `--resume` retains processed records.
 
 | 状态 / Status | 含义 / Meaning |
 |---|---|
 | `ok` | 本次已保存，`detail` 通常为输出宽×高。 / Saved in this run; `detail` normally contains width × height. |
 | `existing` | 输出已存在，本次跳过。 / Output already exists and was skipped. |
 | `skipped` | 用户跳过。 / Skipped by the user. |
+| `paused` | 已保存草稿和进度，等待续裁。 / Draft and progress retained for Resume. |
 | `cancelled` | 用户停止批次，剩余图片不处理；当前图不导出失败副本。 / User stopped the batch; remaining photos are untouched and the current photo is not copied to failures. |
 | `error` | 识别、读取或处理失败，原因记录在 `detail`。 / Detection, loading, or processing failed; see `detail`. |
 

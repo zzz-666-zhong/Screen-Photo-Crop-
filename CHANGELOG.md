@@ -1,5 +1,13 @@
 # 更新记录 / Changelog
 
+## 0.4.0 — 2026-10-12
+
+- 保存最终四角、原图 SHA-256、人工修改标记与程序/模型版本，导出人工确认训练标签，保护既有确认记录。 / Store final corners, source hashes, edit flags, and versions; export reviewed training labels and protect prior confirmations.
+- 新增上一张修改及可点击、滚动的结果缩略图；重新确认后更新结果，跳过编辑保留旧裁剪。 / Add Previous and clickable scrolling thumbnails; reconfirm to replace a crop, or skip to retain the prior result.
+- 记忆目录、模式和选项；暂停、关闭或结束后保存草稿，支持窗口和 `--resume` 续裁。 / Remember folders/modes/options and retain drafts for UI/CLI Resume after Pause, Stop, or Close.
+- 每次保存即写入进度和 CSV；失败补裁保留可用于训练的原照片来源。 / Persist progress/CSV after each save and retain usable source images for retry labels.
+- 扩展双语使用、标签导出及训练说明与跨批次回归测试。 / Expand bilingual usage/export/training guides and cross-run regression tests.
+
 ## 0.3.0 — 2026-10-11
 
 - 原图增加鼠标定位缩放、1–16 倍视野、空格/中键拖移、适应与选区聚焦；放大后选四角仍保存原图坐标，下一张恢复全图。 / Add pointer-anchored 1–16× zoom, Space/middle-button panning, Fit and Focus; corners remain in source coordinates and the next photo starts fitted.

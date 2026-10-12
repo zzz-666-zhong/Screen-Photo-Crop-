@@ -25,6 +25,12 @@ htmlcov/
 **/_debug/
 crop_report.csv
 manual_crop_report.csv
+crop_session.json
+manual_crop_session.json
+crop_labels.json
+reviewed_labels*.json
+.crop-settings.json
+**/label_sources/
 *_cropped.png
 
 # Packaging and local checks

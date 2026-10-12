@@ -4,6 +4,16 @@
 
 Use the two bundled forests for ordinary cropping. For new scenes, prepare **unmarked original photos** and JSON corner labels. Split by capture group before training, reserving photos for validation. At least three training capture groups are required; all resized, brightened, or cropped derivatives of one capture must share a group.
 
+## 从裁剪结果收集标签 / Collect labels while cropping
+
+在 v0.4.0 工作台确认保存后，点击“导出确认标签”即可得到兼容本训练脚本的 JSON。最终四角使用原图经 EXIF 方向校正后的坐标，缩放视图不改变坐标。导出只包含人工确认项；自动接受或手动修改标记分别保留，原图改变会阻止导出。
+
+After confirming crops in v0.4.0, Export labels produces JSON compatible with this trainer. Corners use original EXIF-corrected pixels, independent of view zoom. Only confirmed entries export, with edit flags retained; changed originals block export.
+
+所有导出条目初始为 `train`，不能直接把它们全部训练后再当作验证集。请检查四角，根据拍摄关系调整 `group`，将独立拍摄组的 `split` 改为 `holdout`。复制或增强同一拍摄时保留组名，原图路径也应保持可读。至少 3 个训练组后再运行下面的训练命令。
+
+Exports initially mark every entry `train`. Inspect corners, adjust groups for related captures, and reserve separate groups as `holdout` before fitting. Copies and augmentations retain their capture group; keep source paths readable. At least three training groups are required.
+
 ## 标签格式 / Labels
 
 以下仅示意一条记录；请替换图片路径和真实坐标，并增加训练及验证记录。
