@@ -27,7 +27,7 @@ except ImportError as exc:
     ) from exc
 
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 SUCCESS_FOLDER = "裁剪成功"
@@ -499,6 +499,28 @@ def review_and_crop(image: np.ndarray, proposed: np.ndarray | None,
     return workspace.review(image, proposed, args, title,
                             auto_detect=not (args.manual or args.retry_failed), filename=filename)
 
+
+def fixed_corners(template: dict, image_size: tuple[int, int]) -> np.ndarray:
+    """Reuse confirmed source pixels only when the oriented image size matches."""
+    try:
+        size = tuple(template['image_size'])
+        points = np.asarray(template['quad'], dtype=np.float32)
+        if len(size) != 2 or any(not isinstance(n, int) or n <= 0 for n in size):
+            raise ValueError('Invalid image size')
+        if points.shape != (4, 2) or not np.isfinite(points).all():
+            raise ValueError('Invalid corners')
+        if np.any(points < 0) or np.any(points >= np.asarray(size)):
+            raise ValueError('Corners outside the source image')
+        corners = order_corners(points)
+    except (KeyError, TypeError, ValueError, OverflowError) as exc:
+        raise ValueError('固定坐标记录无效，请开始新批次 / Invalid fixed coordinates; start a new batch.') from exc
+    if size != tuple(image_size):
+        raise ValueError(
+            f'固定坐标要求相同原图尺寸（EXIF 校正后） / Fixed coordinates require the same oriented image size: '
+            f'expected {size[0]}x{size[1]}, got {image_size[0]}x{image_size[1]}')
+    return corners
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -507,6 +529,8 @@ def parser() -> argparse.ArgumentParser:
     mode = result.add_mutually_exclusive_group()
     mode.add_argument("--manual", action="store_true", help="Pick four corners on every photo")
     mode.add_argument("--review", action="store_true", help="Review automatic corners before saving")
+    mode.add_argument("--fixed", "--fixed-coordinates", action="store_true",
+                      help="Confirm corners once, then export the remaining photos at the same source-pixel coordinates")
     mode.add_argument("--retry-failed", action="store_true", help="Manually crop pending failures from the result root")
     result.add_argument("--recursive", action="store_true", help="Include subfolders")
     result.add_argument("--square", action="store_true", help="Crop originally square pictures to 1:1 after perspective correction")
@@ -532,7 +556,7 @@ def create_workspace():
 
 
 def run(args: argparse.Namespace, *, workspace=None) -> int:
-    owned = workspace is None and (args.manual or args.review or args.retry_failed)
+    owned = workspace is None and (args.manual or args.review or args.retry_failed or args.fixed)
     if owned:
         workspace = create_workspace()
     try:
@@ -593,7 +617,10 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
     prepare_output_directories(output_directories)
     labels = LabelStore(destination)
     session = BatchSession(destination, source, files, args, __version__)
-    interactive = args.manual or args.review or args.retry_failed
+    interactive = args.manual or args.review or args.retry_failed or args.fixed
+    fixed_template = session.data.get('fixed_coordinates') if args.fixed else None
+    if fixed_template is not None:
+        fixed_corners(fixed_template, fixed_template.get('image_size', ()) if isinstance(fixed_template,dict) else ())
     if workspace is not None and hasattr(workspace, 'begin_batch'):
         workspace.begin_batch(session, labels, args)
     forced = getattr(args, 'start_index', None) is not None
@@ -635,15 +662,29 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
             forced = True
         if workspace is not None and hasattr(workspace, 'prepare_item'):
             workspace.prepare_item(index)
+        if args.fixed and fixed_template is not None and workspace is not None:
+            if hasattr(workspace, 'fixed_batch_tick'):
+                workspace.fixed_batch_tick()
+            if getattr(workspace, 'closed', False) or workspace.aborted or getattr(workspace, 'paused', False):
+                session.persist('paused' if getattr(workspace, 'paused', False) else 'stopped')
+                break
+            if getattr(workspace, 'requested_index', None) is not None:
+                session.index = workspace.requested_index
+                forced = True
+                continue
         try:
             if target.exists() and not args.overwrite and not forced:
                 status, detail = "existing", "Output already exists; use --overwrite to replace."
             else:
                 digest = fingerprint(actual_source)
                 image = load_image(actual_source)
-                corners = None if interactive else detect_screen(image, square=args.square)
+                needs_review = interactive and (not args.fixed or fixed_template is None)
+                if args.fixed and fixed_template is not None:
+                    corners = fixed_corners(fixed_template, (image.shape[1], image.shape[0]))
+                else:
+                    corners = None if interactive else detect_screen(image, square=args.square)
                 cropped = None
-                if interactive:
+                if needs_review:
                     prior_label=labels.data['items'].get(digest,{})
                     if (forced or args.resume) and record.get('source_sha256')!=digest and prior_label.get('quad'):
                         record=dict(record,quad=prior_label['quad'],source_sha256=digest,
@@ -669,6 +710,14 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
                             status, detail = "skipped", "Skipped by user."
                     else:
                         corners, cropped = reviewed
+                        if args.fixed:
+                            confirmed_template = dict(quad=corners.astype(float).tolist(),
+                                image_size=[image.shape[1],image.shape[0]], anchor_file=name,
+                                source_sha256=digest)
+                            fixed_corners(confirmed_template, (image.shape[1], image.shape[0]))
+                            session.data['fixed_coordinates'] = confirmed_template
+                            session.persist()
+                            fixed_template = confirmed_template
                 if status not in ("skipped", "cancelled", "paused"):
                     if corners is None:
                         raise ValueError("No screen rectangle detected. Retry RESULT_ROOT --retry-failed.")
@@ -682,13 +731,15 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
                     finally:
                         temporary.unlink(missing_ok=True)
                     status, detail = "ok", f"{cropped.shape[1]}x{cropped.shape[0]}"
-                    information = workspace.selection_metadata() if interactive and hasattr(workspace,'selection_metadata') else {}
+                    information = workspace.selection_metadata() if needs_review and hasattr(workspace,'selection_metadata') else {}
                     modified = information.get('manual_modified',bool(args.manual or args.retry_failed))
                     original = label_source(actual_source,destination,relative,args.retry_failed,digest)
                     labels.save(original,corners.astype(float).tolist(),source_sha256=digest,
                         image_size=(image.shape[1],image.shape[0]),output=str(target.relative_to(destination)),
-                        confirmed=interactive,modified=modified,version=__version__,model_version=model_version,
+                        confirmed=needs_review,modified=modified,version=__version__,model_version=model_version,
                         square=args.square,options=session.options)
+                    if args.fixed and not needs_review and hasattr(workspace, 'show_fixed_result'):
+                        workspace.show_fixed_result(image, corners, cropped)
                     if args.debug:
                         debug = image.copy()
                         cv2.polylines(debug, [np.round(corners).astype(np.int32)], True, (0, 255, 0),

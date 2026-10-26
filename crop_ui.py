@@ -256,7 +256,7 @@ class CropWorkspace:
         saved = load_preferences(self.preferences_path)
         self.source = tk.StringVar(value=saved.get('source',''))
         self.output = tk.StringVar(value=saved.get('output',''))
-        self.workflow = tk.StringVar(value=saved.get('workflow','review') if saved.get('workflow') in ('review','manual','retry') else 'review')
+        self.workflow = tk.StringVar(value=saved.get('workflow','review') if saved.get('workflow') in ('review','manual','retry','fixed') else 'review')
         self.shape = tk.StringVar(value=saved.get('shape','full') if saved.get('shape') in ('full','square') else 'full')
         self.recursive = tk.BooleanVar(value=saved.get('recursive') is True)
         self.overwrite = tk.BooleanVar(value=saved.get('overwrite') is True)
@@ -278,7 +278,8 @@ class CropWorkspace:
         modes = ttk.Frame(options, style="Card.TFrame")
         modes.grid(row=0, column=0, sticky="nw")
         ttk.Label(modes, text="01   处理方式 / Workflow", style="Card.TLabel", font=("Microsoft YaHei UI",11,"bold")).pack(anchor="w", pady=(0,5))
-        for value, label in (("review","自动识别 · 逐张确认 / Review"),("manual","手动四角 · 逐张确认 / Manual"),("retry","失败图片补裁 / Retry failures")):
+        for value, label in (("review","自动识别 · 逐张确认 / Review"),("manual","手动四角 · 逐张确认 / Manual"),
+                             ("fixed","固定坐标 · 首张确认后批量导出 / Fixed coordinates"),("retry","失败图片补裁 / Retry failures")):
             ttk.Radiobutton(modes, text=label, value=value, variable=self.workflow).pack(anchor="w")
         shapes = ttk.Frame(options, style="Card.TFrame")
         shapes.grid(row=0, column=1, sticky="nw", padx=(20,0))
@@ -292,7 +293,7 @@ class CropWorkspace:
         for i,(label, variable) in enumerate((("包含子目录 / Recursive",self.recursive),("覆盖旧结果 / Overwrite",self.overwrite),
                                 ("保存识别框 / Debug",self.debug),("清除黑边 / Trim black",self.trim))):
             ttk.Checkbutton(flags, text=label, variable=variable).grid(row=i//2,column=i%2,sticky="w",padx=(0,20))
-        ttk.Label(panel, text="原图与预览同页 · Enter 保存并下一张 / One page · Enter saves and advances",
+        ttk.Label(panel, text="固定坐标：首张 Enter 确认后自动导出；原图尺寸和目标位置须一致。 / Fixed: confirm once; same size and target position required.",
                   style="Card.TLabel", foreground=self.MUTED, wraplength=900).grid(row=5, column=0, columnspan=3, sticky="w", pady=8)
         buttons = ttk.Frame(panel,style='Card.TFrame')
         buttons.grid(row=6,column=0,columnspan=3,sticky='w')
@@ -398,7 +399,7 @@ class CropWorkspace:
             if not source or not output:
                 self.status.set("请选择原照片和结果目录 / Choose both folders")
                 return
-            argv = [source, output, "--manual" if self.workflow.get()=="manual" else "--review"]
+            argv = [source, output, {'manual':'--manual','fixed':'--fixed'}.get(self.workflow.get(),'--review')]
         for enabled, option in ((self.shape.get()=="square","--square"),(self.recursive.get(),"--recursive"),
                                 (self.overwrite.get(),"--overwrite"),(self.debug.get(),"--debug"),(self.trim.get(),"--trim-black")):
             if enabled:
@@ -433,7 +434,7 @@ class CropWorkspace:
             self.busy = False
             self.settings_button.configure(state='normal')
             self._disable_actions()
-            self.previous_button.configure(state='normal' if self.session and self.current_index>0 else 'disabled')
+            self.previous_button.configure(state='normal' if self.session and self.current_index>0 and not args.fixed else 'disabled')
             self.resume_button.configure(state='normal' if self.session and self.session.first_pending()<len(self.session.files) else 'disabled')
             self.status.set(str(exc))
             return
@@ -443,7 +444,7 @@ class CropWorkspace:
             self._disable_actions()
             word = '暂停' if self.paused else '停止' if self.aborted else '完成'
             self.status.set(f"本批已{word} / Batch {'paused' if self.paused else 'stopped' if self.aborted else 'complete'} · 保存 {self.stats['ok']} · 跳过 {self.stats['skipped']} · 错误 {self.stats['error']}")
-            self.previous_button.configure(state='normal' if self.current_index>0 else 'disabled')
+            self.previous_button.configure(state='normal' if self.current_index>0 and not args.fixed else 'disabled')
             self.resume_button.configure(state='normal' if self.session and self.session.first_pending()<len(self.session.files) else 'disabled')
             self.render_gallery()
 
@@ -456,8 +457,10 @@ class CropWorkspace:
         session.persist('running')
         self.source.set(str(session.source))
         self.output.set(str(session.destination))
-        self.workflow.set('retry' if args.retry_failed else 'manual' if args.manual else 'review')
+        self.workflow.set('retry' if args.retry_failed else 'fixed' if args.fixed else 'manual' if args.manual else 'review')
         self.shape.set('square' if args.square else 'full')
+        shape = '正方形 1:1 / Square' if args.square else '完整图片 / Full picture'
+        self.mode_badge.set(('固定坐标 / Fixed · ' if args.fixed else '') + shape)
         for key in ('recursive','overwrite','debug'):getattr(self,key).set(getattr(args,key))
         self.trim.set(not args.no_trim_black)
         self.remember_settings()
@@ -472,6 +475,7 @@ class CropWorkspace:
         self.source_digest=''
         self.automatic_quad=None
         self.selection=None
+        self.fixed_outline=None
         self.source_pil=self.preview_pil=None
         self.counter.set(f'{index+1} / {len(self.session.files)}')
         self.filename.set(self.session.names[index])
@@ -512,8 +516,8 @@ class CropWorkspace:
             return
         options=data['options']
         argv=[data['destination']] if options['retry_failed'] else [data['source'],data['destination']]
-        for key in ('manual','review','retry_failed','recursive','square','overwrite','debug'):
-            if options[key]:argv.append('--'+key.replace('_','-'))
+        for key in ('manual','review','retry_failed','fixed','recursive','square','overwrite','debug'):
+            if options.get(key,False):argv.append('--'+key.replace('_','-'))
         if not options['no_trim_black']:argv.append('--trim-black')
         for key in ('black_threshold','max_trim','inset'):argv.extend(['--'+key.replace('_','-'),str(options[key])])
         argv.append('--resume')
@@ -530,6 +534,9 @@ class CropWorkspace:
         if self.current_index>0:self.jump_to(self.current_index-1)
 
     def jump_to(self,index):
+        if self.batch_args is not None and self.batch_args.fixed:
+            self.status.set('固定坐标批次使用同一组四角；修改坐标请返回设置并开始新批次。 / To change fixed corners, start a new batch in Settings.')
+            return
         if self.session is None or not 0<=index<len(self.session.files):return
         if self.busy:
             if index==self.current_index:return
@@ -608,7 +615,9 @@ class CropWorkspace:
         self.settings_button.configure(state="disabled")
         self.filename.set(filename or "当前图片 / Current image")
         self.counter.set(title.replace("/", " / "))
-        self.mode_badge.set("正方形 1:1 / Square" if args.square else "完整图片 / Full picture")
+        shape = "正方形 1:1 / Square" if args.square else "完整图片 / Full picture"
+        self.mode_badge.set(('固定坐标 / Fixed · ' if args.fixed else '') + shape)
+        self.save_button.configure(text='确认并批量导出 / Confirm & export ↵' if args.fixed else '保存并下一张 / Save & next ↵')
         self.selection = CropSelection(image, args, self.backend)
         self.drag_index = None
         self.reselect_point = None
@@ -623,7 +632,7 @@ class CropWorkspace:
         self.skip_button.configure(state="normal")
         self.stop_button.configure(state="normal")
         self.pause_button.configure(state='normal')
-        self.previous_button.configure(state='normal' if self.current_index>0 else 'disabled')
+        self.previous_button.configure(state='normal' if self.current_index>0 and not args.fixed else 'disabled')
         self.status.set("正在识别边界，可跳过或结束 / Detecting boundaries…")
         self.root.update_idletasks()
         self.render_source()
@@ -692,7 +701,10 @@ class CropWorkspace:
         self.reset_button.configure(state="normal")
         self.undo_button.configure(state="normal" if self.selection.points else "disabled")
         self.preview_detail.set(f"{preview.shape[1]} × {preview.shape[0]} px · 尚未保存 / Not saved" if ready else "等待有效四角 / Waiting for valid corners")
-        self.status.set(self.selection.error or ("预览已就绪 · 点击原图重选；拖动角点微调；Enter 保存并下一张 / Click original: reselect · Drag: adjust · Enter: save & next" if ready else f"请按顺序选四角 · 已选 {len(self.selection.points)}/4；可拖动角点 / Select 4 corners; drag to adjust"))
+        ready_message = ("四角确认后按 Enter：后续按相同坐标自动导出，无需逐张审核 / Enter: confirm corners and export the rest without review"
+                         if self.selection.args.fixed else
+                         "预览已就绪 · 点击原图重选；拖动角点微调；Enter 保存并下一张 / Click original: reselect · Drag: adjust · Enter: save & next")
+        self.status.set(self.selection.error or (ready_message if ready else f"请按顺序选四角 · 已选 {len(self.selection.points)}/4；可拖动角点 / Select 4 corners; drag to adjust"))
         self.render_source()
         self.render_preview()
         self.checkpoint_selection()
@@ -712,9 +724,8 @@ class CropWorkspace:
         self.source_photo = ImageTk.PhotoImage(visible,master=self.root)
         canvas.create_image(0,0,image=self.source_photo,anchor="nw")
         self.zoom_label.set(f"{self.navigation.zoom:.1f}×")
-        if self.selection is None:
-            return
-        points = [view.to_canvas(p) for p in self.selection.points]
+        corners = self.selection.points if self.selection is not None else (getattr(self,'fixed_outline',None) or [])
+        points = [view.to_canvas(p) for p in corners]
         if len(points)>1:
             outline = points+[points[0]] if len(points)==4 else points
             canvas.create_line(*[n for p in outline for n in p],fill="#54d9da",width=2)
@@ -879,6 +890,31 @@ class CropWorkspace:
             self.checkpoint_selection()
             self.aborted = True
             self._decide("abort")
+
+    def fixed_batch_tick(self):
+        """Service Pause/Stop/Close between unattended exports, without a review."""
+        if self.closed:
+            return
+        self.selection = None
+        self.action.set('pending')
+        self._disable_actions()
+        self.stop_button.configure(state='normal')
+        self.pause_button.configure(state='normal')
+        self.previous_button.configure(state='disabled')
+        self.status.set('正在按已确认坐标批量导出 · 可暂停或结束 / Exporting with fixed coordinates · Pause/Stop available')
+        self.root.update()
+
+    def show_fixed_result(self, image, corners, cropped):
+        if self.closed:
+            return
+        self.selection = None
+        self.fixed_outline = corners.astype(float).tolist()
+        self.source_pil = Image.fromarray(image[:,:,::-1])
+        self.preview_pil = Image.fromarray(cropped[:,:,::-1])
+        self.navigation.reset()
+        self.render_source()
+        self.render_preview()
+        self.root.update_idletasks()
 
     def record(self, status, relative, detail):
         if self.closed:

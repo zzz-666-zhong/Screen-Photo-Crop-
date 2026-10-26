@@ -9,7 +9,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from uuid import uuid4
 
-OPTION_NAMES = ('manual', 'review', 'retry_failed', 'recursive', 'square',
+OPTION_NAMES = ('manual', 'review', 'retry_failed', 'fixed', 'recursive', 'square',
                 'no_trim_black', 'black_threshold', 'max_trim', 'inset', 'overwrite', 'debug')
 
 
@@ -106,6 +106,8 @@ class BatchSession:
                     or not isinstance(old.get('source'),str) or not isinstance(old.get('options'),dict)
                     or not isinstance(old.get('records'),dict) or not isinstance(old.get('drafts'),dict)):
                 raise ValueError('No readable batch checkpoint. Start a new batch first.')
+            # Checkpoints before fixed-coordinate mode did not store this flag.
+            old['options'].setdefault('fixed', False)
             if Path(old['source']).resolve() != self.source.resolve() or old['options'] != self.options:
                 raise ValueError('Resume must use the saved source and crop options. Use Resume in the workspace.')
         self.data = old or dict(schema=1, source=str(self.source), destination=str(self.destination),

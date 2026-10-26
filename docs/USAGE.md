@@ -41,9 +41,29 @@ Double-click **`启动裁剪.cmd`**, or run the command below. Direct execution 
 .\.crop-env\Scripts\python.exe screen_crop.py
 ```
 
-无参数启动进入设置页：填写原图和结果目录，选择自动审核、手动四角或失败补裁，并选择完整图片或正方形 1:1。失败补裁使用上次结果总目录。批次完成后留在同一页面，点击返回设置可开始下一批。
+无参数启动进入设置页：填写原图和结果目录，选择自动审核、手动四角、固定坐标或失败补裁，并选择完整图片或正方形 1:1。失败补裁使用上次结果总目录。批次完成后留在同一页面，点击返回设置可开始下一批。
 
-With no arguments, the startup page lets you choose folders, Review/Manual/Retry, and Full picture/Square 1:1. Retry uses the previous result root. Completion stays on the same page; Settings starts another batch.
+With no arguments, the startup page lets you choose folders, Review/Manual/Fixed/Retry, and Full picture/Square 1:1. Retry uses the previous result root. Completion stays on the same page; Settings starts another batch.
+
+## 固定坐标批量导出 / Exporting with fixed coordinates
+
+1. 选择“固定坐标 · 首张确认后批量导出”，填写原图和结果目录；目标本来是正方形时选择 Square。 / Select Fixed coordinates, choose source/result folders, and enable Square for originally square targets.
+2. 在首张待处理照片检查四角；需要时点击原图重选，滚轮放大或拖动角点。右侧预览正确后，按 Enter 或“确认坐标并批量导出”。 / Inspect the first pending photo. Click to reselect, zoom, or drag corners, then press Enter or Confirm & export when the preview is correct.
+3. 后续图片直接按这四个原图像素坐标校正和导出，不再运行识别、逐张审核或等待回车。 / Later photos are rectified/exported at the same source-pixel coordinates without detection, review, or further Enter presses.
+
+```powershell
+.\.crop-env\Scripts\python.exe screen_crop.py "原图" "结果示例" --fixed
+.\.crop-env\Scripts\python.exe screen_crop.py "原图" "结果示例" --fixed --square
+.\.crop-env\Scripts\python.exe screen_crop.py "原图" "结果示例" --fixed --square --resume
+```
+
+`--fixed-coordinates` 是 `--fixed` 的别名。该模式要求相机、屏幕及目标位置不变，EXIF 校正后的原图尺寸相同。不同尺寸记为失败并保留副本，其余图片继续导出，不按比例缩放坐标。默认跳过已有结果；替换需 `--overwrite`。首张无效或被跳过时，下张待处理照片继续确认，直到建立有效坐标。
+
+`--fixed-coordinates` aliases `--fixed`. Keep the camera, screen, and target in the same position and retain the same image dimensions after EXIF orientation. Size mismatches are reported/copied as failures; other photos continue, without scaling coordinates. Existing results are skipped unless `--overwrite` is supplied. If the reference is invalid or skipped, the next pending photo is offered until valid corners are confirmed.
+
+批量导出中可以暂停、结束或关闭窗口。使用“继续上次批次”或相同参数加 `--resume`，会从 `crop_session.json` 恢复坐标和进度，不再要求确认首张。修改坐标需返回设置开始新批次。固定批次的缩略图不进入逐张编辑；需要逐张修改时，开始 Review/Manual 批次并按需覆盖。训练标签仅将实际确认的参考照片标为已审核，后续复用坐标的照片保持未审核。
+
+Pause, Stop, or Close during export; Resume or the same CLI arguments plus `--resume` restores corners and progress from `crop_session.json` without reconfirming. Start a new batch to change corners. Fixed-batch thumbnails do not enter per-photo editing; use a Review/Manual batch with Overwrite for that. Only the explicitly confirmed reference is marked reviewed for training; later photos remain unreviewed.
 
 ## 放大、拖移与精确选四角 / Zoom, pan, and precise corners
 
@@ -227,6 +247,7 @@ When enabled, trimming removes consecutive outer rows/columns with at least 90% 
 |---|---|---|
 | `--manual` | 关闭 / Off | 全部手动选四角。 / Manually select corners for every image. |
 | `--review` | 关闭 / Off | 逐张确认或修改自动框。 / Review or replace automatic corners. |
+| `--fixed` | 关闭 / Off | 首张确认四角，后续相同尺寸照片按固定坐标导出；别名 `--fixed-coordinates`。 / Confirm once and reuse coordinates for matching-size sources; alias `--fixed-coordinates`. |
 | `--retry-failed` | 关闭 / Off | 递归手动处理结果目录下的失败副本。 / Recursively retry failure copies manually. |
 | `--square` | 关闭 / Off | 将原本正方形的目标完整透视校正为 1:1；裁边后仍保持 1:1。 / Rectify the full originally square target to 1:1, retained after optional trimming. |
 | `--recursive` | 关闭 / Off | 包含输入子目录并保留相对目录结构。 / Include input subfolders and preserve relative paths. |
@@ -240,9 +261,9 @@ When enabled, trimming removes consecutive outer rows/columns with at least 90% 
 | `--export-labels` | 未设置 / Unset | 批次结束后导出人工确认标签到 JSON。 / Export reviewed labels after processing. |
 | `--debug` | 关闭 / Off | 保存带四角轮廓的原图预览。 / Save source-image previews with corner outlines. |
 
-`--manual`、`--review`、`--retry-failed` 三者互斥；`--trim-black` 与 `--no-trim-black` 互斥。
+`--manual`、`--review`、`--fixed`、`--retry-failed` 互斥；`--trim-black` 与 `--no-trim-black` 互斥。
 
-`--manual`, `--review`, and `--retry-failed` are mutually exclusive. `--trim-black` and `--no-trim-black` are also mutually exclusive.
+`--manual`, `--review`, `--fixed`, and `--retry-failed` are mutually exclusive. `--trim-black` and `--no-trim-black` are also mutually exclusive.
 
 ## 4. 输出与报告 / Outputs and reports
 

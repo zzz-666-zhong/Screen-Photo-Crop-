@@ -1,5 +1,13 @@
 # 更新记录 / Changelog
 
+## 0.6.0 — 2026-10-26
+
+- 新增固定坐标模式：首张确认四角，后续按原图像素坐标批量导出，跳过重复识别与逐张审核。 / Add fixed-coordinate mode: confirm corners once, then export remaining photos at the same source-pixel coordinates without repeated detection or review.
+- 支持设置页与 `--fixed` / `--fixed-coordinates`，可组合正方形、递归、覆盖和调试选项。 / Support the startup page and CLI flags, combined with Square, Recursive, Overwrite, and Debug.
+- 保存固定四角及参考尺寸，暂停/关闭后续跑无需重新确认；尺寸不同的照片进入失败记录。 / Persist corners/reference size for resume without reconfirmation; report dimension mismatches as failures.
+- 自动复用坐标的图片不标为人工审核训练标签，兼容旧批次恢复记录。 / Keep reused-coordinate photos unreviewed for training and retain compatibility with earlier checkpoints.
+- 增加固定坐标导出、暂停恢复、尺寸校验和设置页测试，补充双语使用说明。 / Add export, resume, size-validation, and settings tests with bilingual usage documentation.
+
 ## 0.5.0 — 2026-10-26
 
 - 新增浅色背景完整边界检测、文字分组候选与正方形弱边补全，减少内部小框误选。 / Add light-background whole-picture detection, grouped text proposals, and square-prior weak-side completion to reduce interior-fragment selections.
