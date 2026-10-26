@@ -1,5 +1,19 @@
 # 更新记录 / Changelog
 
+## 0.5.0 — 2026-10-26
+
+- 新增浅色背景完整边界检测、文字分组候选与正方形弱边补全，减少内部小框误选。 / Add light-background whole-picture detection, grouped text proposals, and square-prior weak-side completion to reduce interior-fragment selections.
+- 对弱边保留完整候选，对平坦面板和多目标歧义增加筛选。 / Preserve weak-side proposals and filter flat panels/ambiguous multiple targets.
+- 四边特征批量计算、合并分位数计算、复用检测证据；森林权重与 24 特征契约保持不变。 / Batch four-side feature work, combine percentiles, and reuse evidence while retaining forest weights and feature order.
+- 记录 5 张开发示例、12 张同场景检查及 11 张反光回归的边界与 3 次重复计时，公开匿名指标和基准脚本。 / Report localization and three-repeat timings for five development examples, twelve same-session checks, and eleven reflection captures with anonymous metrics and a benchmark script.
+- 更新双语使用、模型限制和合成回归测试。 / Update bilingual usage/limitations and synthetic regression checks.
+
+## 0.4.1 — 2026-10-24
+
+- 开始裁剪前，对结果目录及成功/失败子目录执行真实创建、写入、重命名和删除预检，权限不足时保留已有批次记录。 / Before cropping, probe directory creation, writing, renaming, and cleanup in output folders; preserve existing checkpoints if access fails.
+- 无法写入或存在同名文件时显示可操作的双语错误，返回设置并聚焦结果路径，便于更换目录或从桌面重新启动。 / Show actionable bilingual output-access errors, return to settings, and focus the output path for recovery.
+- 进度、标签与目录预检采用独占创建的唯一临时文件，避免 Windows 在权限检查失真时长时间重复尝试临时文件名。 / Use exclusive unique temporary files for checkpoints, labels, and output probes, avoiding prolonged Windows retries when permission checks disagree with actual access.
+
 ## 0.4.0 — 2026-10-12
 
 - 保存最终四角、原图 SHA-256、人工修改标记与程序/模型版本，导出人工确认训练标签，保护既有确认记录。 / Store final corners, source hashes, edit flags, and versions; export reviewed training labels and protect prior confirmations.

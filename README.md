@@ -4,7 +4,7 @@
 
 Extract complete pictures from photographed screens with automatic corner detection, perspective correction, and dark-content preservation. Includes a pretrained model, a single-page preview, Enter-to-save review, manual re-cropping, and square mode.
 
-**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.4.0**
+**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.5.0**
 
 [使用指南 / Usage](docs/USAGE.md) · [模型与评估 / Model & evaluation](docs/MODEL_CARD.md) · [继续训练 / Training](docs/TRAINING.md) · [发布指南 / Publishing](docs/PUBLISHING.md)
 
@@ -15,6 +15,7 @@ Extract complete pictures from photographed screens with automatic corner detect
 | 定位屏幕内图片本身，支持横图、竖图与透视四边形。 | Locates the picture inside the screen, including landscape, portrait, and perspective-distorted images. |
 | 通用森林与反光小目标森林分别包含 240 棵树、24 个特征，选择候选区域并检查边界。 | Base and reflection forests each use 240 trees and 24 features to score candidates and check borders. |
 | 新增未标线原照片训练，使用局部反光、运动模糊和透视扰动增强小目标定位。 | Additional training on unmarked photos with glare, motion blur, and perspective augmentations improves small-target localization. |
+| 浅色背景先检测完整图片边界，支持白色边缘和有可辨边界的文字图片；普通场景继续使用森林评分。 | A light-background path finds whole-picture boundaries, including white edges and bounded text images; other scenes retain forest scoring. |
 | 默认保留黑衣服、黑背景；需要时显式开启黑边清除。 | Preserves dark clothing and backgrounds by default; black-margin trimming is opt-in. |
 | 自动批处理、逐张审核、手动选四角、失败补裁。 | Automatic batches, review, manual corners, and failure retries. |
 | 原图、四角调整与裁剪结果在同一页面；四角有效后自动预览，按一次 Enter 保存并下一张。 | Original, corner editing, and crop preview share one page; valid corners preview immediately, and one Enter saves and advances. |
@@ -459,6 +460,7 @@ The exported JSON is readable by `train_screen_model.py`, initially with every r
 
 | 现象 / Symptom | 处理方法 / Action |
 |---|---|
+| `[WinError 5] 拒绝访问` / Access denied | 新版在开始前预检结果目录写入能力。选择可写目录重试；如果从受限终端或自动化工具启动，关闭旧窗口，从资源管理器双击 `启动裁剪.cmd`。失败时会显示具体路径并返回设置，原照片和已有批次记录保留。 / Output writes are checked before processing. Choose a writable folder, or relaunch the launcher from File Explorer if the current process is restricted. The error identifies the path and returns to settings, retaining originals/checkpoints. |
 | 双击 `.py` 打开编辑器 / A `.py` file opens an editor | 改用 `启动裁剪.cmd`，或使用项目解释器运行 `screen_crop.py`。 / Use `启动裁剪.cmd` or run `screen_crop.py` with the project interpreter. |
 | 提示未找到 Python / Python not found | 安装 Python 3.10+，重新打开终端，检查 `python --version`，再启动。 / Install Python 3.10+, open a new terminal, check `python --version`, then relaunch. |
 | 首次安装失败或没有弹出工作台 / Setup fails or no workspace opens | 查看终端报错和联网状态；可运行 `安装环境.cmd` 单独安装，或采用上面的手动安装命令。 / Inspect terminal errors/connectivity; try the setup-only launcher or manual setup above. |
@@ -476,6 +478,29 @@ The exported JSON is readable by `train_screen_model.py`, initially with every r
 反馈问题时，请提供程序版本、启动方式或完整命令、终端错误文字，以及是否开启正方形/清黑边。可用 `python screen_crop.py --version` 查看版本。更多排查见 [docs/USAGE.md](docs/USAGE.md)。
 
 When reporting a problem, include the version, launcher or complete command, terminal error text, and whether Square/Trim black was enabled. Check the version with `python screen_crop.py --version`. More troubleshooting is in [docs/USAGE.md](docs/USAGE.md).
+
+## v0.5.0 白色边缘与识别效率 / White edges and detection speed
+
+新增浅色屏幕背景处理：估计并扣除缓慢变化的背景光照，组合多组差异掩膜寻找完整四边形。文字图片按整组内容生成边界；正方形模式可用已辨认的边补全较弱的一边。检测到合格的完整图片后，直接使用该区域，减少反光小目标森林误选内部小块的情况。界面和命令用法不变。
+
+A new light-background path estimates smooth illumination, combines residual masks, and proposes complete quadrilaterals. Text content is grouped, and Square mode can complete a weak side using visible sides. Qualified whole-picture regions bypass the small-target forest, reducing selection of interior fragments. Existing UI and CLI usage remain the same.
+
+| 本地同图对比 / Local same-image comparison | v0.4.1 | v0.5.0 |
+|---|---:|---:|
+| 用户提供的 5 张困难示例达标 / Five supplied examples, IoU ≥ 0.85 | 0/5 | 5/5 |
+| 上述示例平均 IoU / Mean IoU | 3.28% | 95.79% |
+| 上述示例识别耗时中位数 / Median detection time | 1.412 s | 0.058 s |
+| 另取的 12 张人工修正照片达标 / Twelve additional corrected captures | 0/12 | 8/12 |
+| 原有反光照片达标 / Existing reflection captures | 11/11 | 11/11 |
+| 原有反光照片识别耗时中位数 / Median reflection detection time | 2.337 s | 1.556 s |
+
+计时为每张照片每个版本连续 3 次的中位数，再取该组中位数；使用相同 CPU、原分辨率输入，模型预加载，不含读图、界面和保存。一般检测路径还将四边采样合并计算，并复用灰度、纹理和梯度，原森林权重和 24 特征顺序不变。速度取决于硬件和图片，不能保证所有输入均有同等提速。
+
+For each photo/version, time is the median of three calls, then the median across that group. Both versions use the same CPU and native-resolution inputs with preloaded models; I/O, UI, and saving are excluded. The general path batches four-side sampling and reuses grayscale, texture, and gradient maps, retaining forest weights and feature order. Speed varies with hardware and inputs.
+
+这 5 张属于开发示例，另 12 张与其共享拍摄环境，均不能代表任意新场景准确率。4 张额外照片仍未达标，涉及少量字符、大块留白、表格和文字标题，建议继续人工审核。旧 16 个合成回归保持全部通过；新增白边、浅边、文字页和竖图测试也通过。参数、匿名逐张指标与复评命令见 [模型说明](docs/MODEL_CARD.md)。
+
+The five examples were used during development; the twelve additional captures share the environment. Neither estimates accuracy on arbitrary scenes. Four additional captures remain below threshold, including sparse characters, large blank areas, a chart, and a text heading; review them manually. All 16 earlier synthetic checks pass, alongside new white-frame, faint-side, text-page, and portrait tests. See the [model card](docs/MODEL_CARD.md) for parameters, anonymous records, and reproduction commands.
 
 ## v0.3.0 反光与抖动训练 / Glare and motion-blur training
 
@@ -527,6 +552,7 @@ Validation images were excluded from fitting but share some scenes/content with 
 
 ```text
 screen_crop.py                  Detection, correction, batch processing
+white_border.py                 Whole-picture detection on light backgrounds
 crop_ui.py                      Single-page desktop workspace
 batch_state.py                  Checkpoints and reviewed training labels
 launch_crop.py                  Isolated environment setup and launcher

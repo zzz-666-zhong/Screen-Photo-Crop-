@@ -7,25 +7,71 @@ import json
 import os
 from pathlib import Path
 from datetime import datetime, timezone
-import tempfile
+from uuid import uuid4
 
 OPTION_NAMES = ('manual', 'review', 'retry_failed', 'recursive', 'square',
                 'no_trim_black', 'black_threshold', 'max_trim', 'inset', 'overwrite', 'debug')
+
+
+class OutputDirectoryError(ValueError):
+    """An output location failed a real create/write/rename/delete check."""
+
+    def __init__(self, directory, cause):
+        self.directory = Path(directory)
+        self.cause = cause
+        conflict = isinstance(cause, (FileExistsError, NotADirectoryError))
+        reason = ('路径被同名文件占用 / A file occupies the folder path' if conflict else
+                  '当前进程无法写入结果目录 / This process cannot write to the result folder')
+        super().__init__(f'{reason}\n{self.directory}\n'
+            '请更换可写的结果目录后重试。若从受限终端或自动化工具启动，请关闭窗口，'
+            '从资源管理器双击“启动裁剪.cmd”重新打开。\n'
+            'Choose a writable result folder and retry. If launched from a restricted terminal or '
+            'automation tool, close the window and double-click 启动裁剪.cmd in File Explorer.\n'
+            f'系统详情 / System details: {cause}')
+
+
+def prepare_output_directories(directories):
+    """Probe actual filesystem operations before changing checkpoints or labels.
+
+    os.access/ACL inspection alone cannot establish the rights of a sandboxed or
+    otherwise restricted process. Only unique disposable files are ever touched.
+    """
+    for directory in map(Path, directories):
+        temporary = renamed = None
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+            # Windows tempfile retries PermissionError when os.access says writable.
+            # A restricted Python process may then loop for a very long time.
+            candidate = directory/f'.screen-crop-check-{uuid4().hex}.tmp'
+            with candidate.open('xb') as stream:
+                temporary = candidate
+                stream.write(b'output write check\n'); stream.flush(); os.fsync(stream.fileno())
+            renamed = temporary.with_suffix('.checked')
+            temporary.replace(renamed)
+        except OSError as exc:
+            raise OutputDirectoryError(directory, exc) from exc
+        finally:
+            for probe in (temporary, renamed):
+                if probe is not None:
+                    try:
+                        probe.unlink(missing_ok=True)
+                    except OSError as exc:
+                        raise OutputDirectoryError(directory, exc) from exc
 
 
 def atomic_json(path, data):
     path = Path(path)
     payload=json.dumps(data,ensure_ascii=False,indent=2,allow_nan=False)+'\n'
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary=None
+    temporary=path.with_name(path.name+'.'+uuid4().hex+'.tmp')
+    created=False
     try:
-        with tempfile.NamedTemporaryFile(mode='w',encoding='utf-8',dir=path.parent,
-                                         prefix=path.name+'.',suffix='.tmp',delete=False) as stream:
-            temporary=Path(stream.name)
+        with temporary.open('x',encoding='utf-8') as stream:
+            created=True
             stream.write(payload);stream.flush();os.fsync(stream.fileno())
         temporary.replace(path)
     finally:
-        if temporary is not None:temporary.unlink(missing_ok=True)
+        if created:temporary.unlink(missing_ok=True)
 
 
 def read_json(path):

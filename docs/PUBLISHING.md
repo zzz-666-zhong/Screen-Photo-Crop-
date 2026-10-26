@@ -20,7 +20,7 @@ Create an empty GitHub repository, for example `screen-photo-crop`, without addi
 git init -b main
 git add .
 git status --short
-git commit -m "Release screen photo crop v0.4.0"
+git commit -m "Release screen photo crop v0.5.0"
 ```
 
 将下面的 `<YOUR_REPOSITORY_URL>` 替换为新仓库的 HTTPS 或 SSH 地址：
@@ -55,9 +55,9 @@ macOS/Linux 使用 `.crop-env/bin/python`。打包脚本本身仅需 Python 标�
 
 Use `.crop-env/bin/python` on macOS/Linux. The packager itself uses only the standard library, so it can also run with `python scripts/build_release.py`. Add `--overwrite` to replace an existing release of the same version.
 
-输出 `dist/screen-photo-crop-v0.4.0.zip` 及 `.zip.sha256`。ZIP 内附逐文件 SHA-256 清单。发布内容由 [release-files.txt](../release-files.txt) 明确列出，原图、虚拟环境、历史结果及临时文件不会进入包中。
+输出 `dist/screen-photo-crop-v0.5.0.zip` 及 `.zip.sha256`。ZIP 内附逐文件 SHA-256 清单。发布内容由 [release-files.txt](../release-files.txt) 明确列出，原图、虚拟环境、历史结果及临时文件不会进入包中。
 
-This produces `dist/screen-photo-crop-v0.4.0.zip` and `.zip.sha256`, with a per-file SHA-256 manifest inside the ZIP. [release-files.txt](../release-files.txt) explicitly lists public files; source photos, environments, historical results, and temporary files are excluded.
+This produces `dist/screen-photo-crop-v0.5.0.zip` and `.zip.sha256`, with a per-file SHA-256 manifest inside the ZIP. [release-files.txt](../release-files.txt) explicitly lists public files; source photos, environments, historical results, and temporary files are excluded.
 
 ## Actions 与 Release / Actions and release
 
@@ -65,9 +65,9 @@ This produces `dist/screen-photo-crop-v0.4.0.zip` and `.zip.sha256`, with a per-
 
 After pushing, inspect `Test and package` in Actions. It is configured for Windows/Linux with Python 3.10/3.12 and builds a downloadable artifact after tests pass. It must run in your repository; local results do not imply hosted CI has passed.
 
-创建 `v0.4.0` Release，附上 ZIP、`.sha256` 和版本说明。工作流不会自动公开 Release。说明可参考 [CHANGELOG.md](../CHANGELOG.md)。后续发布更新 `screen_crop.py` 的 `__version__`、变更记录、文档版本和文件清单；修改权重时同步模型说明及评估。
+创建 `v0.5.0` Release，附上 ZIP、`.sha256` 和版本说明。工作流不会自动公开 Release。说明可参考 [CHANGELOG.md](../CHANGELOG.md)。后续发布更新 `screen_crop.py` 的 `__version__`、变更记录、文档版本和文件清单；修改权重时同步模型说明及评估。
 
-Create a `v0.4.0` release with the ZIP, `.sha256`, and release notes from [CHANGELOG.md](../CHANGELOG.md). The workflow does not publish a public release automatically. For later releases, update `__version__` in `screen_crop.py`, the changelog, documentation versions, and file list; model updates also require model-card and evaluation updates.
+Create a `v0.5.0` release with the ZIP, `.sha256`, and release notes from [CHANGELOG.md](../CHANGELOG.md). The workflow does not publish a public release automatically. For later releases, update `__version__` in `screen_crop.py`, the changelog, documentation versions, and file list; model updates also require model-card and evaluation updates.
 
 Suggested description: `Crop pictures from photographed screens with perspective correction, a pretrained model, and manual review.`
 

@@ -27,7 +27,7 @@ except ImportError as exc:
     ) from exc
 
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 SUCCESS_FOLDER = "裁剪成功"
@@ -137,10 +137,8 @@ def quad_features(small, gray, saturation, texture, gradients, q):
     sides = np.linalg.norm(np.roll(q, -1, axis=0) - q, axis=1)
     area = abs(cv2.contourArea(q)) / (w * h)
     center = 1 - np.linalg.norm(q.mean(axis=0) - [w/2, h/2]) / np.hypot(w/2,h/2)
-    angles = []
-    for i in range(4):
-        a, b = q[(i-1)%4]-q[i], q[(i+1)%4]-q[i]
-        angles.append(abs(float(a@b)) / (np.linalg.norm(a)*np.linalg.norm(b)))
+    before, after = np.roll(q,1,axis=0)-q, np.roll(q,-1,axis=0)-q
+    angles = np.abs(np.sum(before*after,axis=1))/(np.linalg.norm(before,axis=1)*np.linalg.norm(after,axis=1))
     if max(angles) > .88:
         return None
     matrix = cv2.getPerspectiveTransform(q, np.float32([[0,0],[63,0],[63,63],[0,63]]))
@@ -150,47 +148,34 @@ def quad_features(small, gray, saturation, texture, gradients, q):
     ins_color = (ins_hsv[:,:,1]>55)&(ins_hsv[:,:,2]>50)
     monochrome = ins_color.mean() < .035
     t = np.linspace(.10,.90,40,dtype=np.float32)
-    outer=[]; inner=[]; gvals=[]; contrasts=[]; cover=[]
     distance = max(3., min(12., sides.min()*.035))
-    for i in range(4):
-        a,b=q[i],q[(i+1)%4]
-        delta=b-a
-        normal=np.float32([-delta[1],delta[0]]) / np.linalg.norm(delta)
-        points=a[None,:]+t[:,None]*delta[None,:]
-        # Cyclic corners have inward-pointing left normals in image coordinates.
-        pin=points+normal*distance
-        pout=points-normal*distance
-        def sample(arr, pts):
-            return cv2.remap(arr,pts[:,0].reshape(1,-1),pts[:,1].reshape(1,-1),
-                             cv2.INTER_LINEAR,borderMode=cv2.BORDER_REFLECT).reshape(-1,*arr.shape[2:])
-        outside_pixels=sample(small,pout)
-        inside_pixels=sample(small,pin)
-        outer.append(outside_pixels)
-        inner.append(inside_pixels)
-        values=[]
-        for d in (-2.,0.,2.):
-            values.append(sample(gradients,points+normal*d))
-        edge=np.max(values,axis=0)
-        gvals.append(float(np.median(edge)))
-        cover.append(float(np.mean(edge>12)))
-        contrasts.append(float(np.median(np.linalg.norm(inside_pixels.astype(float)-outside_pixels.astype(float),axis=1)))/441.)
-    outer=np.concatenate(outer).reshape(4,40,3)
+    delta=np.roll(q,-1,axis=0)-q
+    normals=np.column_stack((-delta[:,1],delta[:,0]))/sides[:,None]
+    points=q[:,None,:]+t[None,:,None]*delta[:,None,:]
+    def sample(arr, pts):
+        return cv2.remap(arr,np.float32(pts[...,0]),np.float32(pts[...,1]),
+                         cv2.INTER_LINEAR,borderMode=cv2.BORDER_REFLECT)
+    pout=points-normals[:,None,:]*distance
+    outer=sample(small,pout)
+    inner=sample(small,points+normals[:,None,:]*distance)
+    gradient_points=points[None]+np.float32([-2,0,2])[:,None,None,None]*normals[None,:,None,:]
+    edge=sample(gradients,gradient_points.reshape(12,40,2)).reshape(3,4,40).max(axis=0)
+    gvals=np.median(edge,axis=1)
+    cover=np.mean(edge>12,axis=1)
+    contrasts=np.median(np.linalg.norm(inner.astype(float)-outer.astype(float),axis=2),axis=1)/441.
     out_hsv=cv2.cvtColor(outer,cv2.COLOR_BGR2HSV)
     out_gray=cv2.cvtColor(outer,cv2.COLOR_BGR2GRAY)
     ins_tex=cv2.warpPerspective(texture,matrix,(64,64))[3:-3,3:-3]
     # Texture in a 1.2x wider quad tests whether the rectangle isolates a photo
     # from a flat viewer background instead of selecting a part inside the photo.
-    outer_tex=[]
-    for i in range(4):
-        a,b=q[i],q[(i+1)%4];delta=b-a
-        normal=np.float32([-delta[1],delta[0]])/np.linalg.norm(delta)
-        pts=a+t[:,None]*delta-normal*distance
-        outer_tex.extend(cv2.remap(texture,pts[:,0].reshape(1,-1),pts[:,1].reshape(1,-1),cv2.INTER_LINEAR,borderMode=cv2.BORDER_REFLECT).ravel())
+    outer_tex=sample(texture,pout)
     it=float(np.mean(ins_tex));ot=float(np.mean(outer_tex))
+    low,high=np.percentile(ins_gray,[10,90])
+    dynamic_range=high-low
     # Grayscale/dim photos need texture and a supported boundary, rather than color.
     # Flat UI panels and text-only fragments should not become monochrome photos.
     if monochrome and (ins_gray.std() < 6 or
-                       np.percentile(ins_gray,90)-np.percentile(ins_gray,10) < 10 or
+                       dynamic_range < 10 or
                        min(cover) < .45 or min(contrasts) < .025 or
                        it < max(1., ot*1.25)):
         return None
@@ -200,11 +185,11 @@ def quad_features(small, gray, saturation, texture, gradients, q):
         abs(float(ins_gray.mean())-float(out_gray.mean()))/255,
         ins_gray.std()/128,out_gray.std()/128,it/40,ot/40,np.log((it+1)/(ot+1)),
         np.mean(gvals)/100,min(gvals)/100,np.mean(cover),np.mean(contrasts),min(contrasts),
-        np.mean([np.std(row) for row in out_gray])/128,ins_hsv[:,:,1].std()/128,
-        (np.percentile(ins_gray,90)-np.percentile(ins_gray,10))/255,
+        np.mean(np.std(out_gray,axis=1))/128,ins_hsv[:,:,1].std()/128,
+        dynamic_range/255,
         abs(sides[0]-sides[2])/max(sides[0],sides[2])+abs(sides[1]-sides[3])/max(sides[1],sides[3]),
         np.mean(out_gray<60),np.mean(ins_gray<50),
-        np.mean(np.abs(np.concatenate(inner).astype(float)-outer.reshape(-1,3)))/255])
+        np.mean(np.abs(inner.astype(float)-outer))/255])
 
 
 def photo_evidence(image):
@@ -222,8 +207,8 @@ def photo_evidence(image):
     return small,scale,gray,hsv,texture,gradients
 
 
-def photo_candidates(image):
-    small,scale,gray,hsv,texture,gradients=photo_evidence(image)
+def photo_candidates(image, *, evidence=None):
+    small,scale,gray,hsv,texture,gradients=evidence if evidence is not None else photo_evidence(image)
     h,w=gray.shape
     color=(((hsv[:,:,1]>60)&(hsv[:,:,2]>50)).astype(np.uint8)*255)
     masks=[]
@@ -298,10 +283,14 @@ def photo_candidates(image):
     return candidates
 
 
-def refine_photo_edges(image, quad):
+def refine_photo_edges(image, quad, *, evidence=None):
     """Snap nearby sides to a consistently supported border, including dim edges."""
-    small,scale=detection_image(image)
-    gray=cv2.GaussianBlur(cv2.cvtColor(small,cv2.COLOR_BGR2GRAY),(5,5),0).astype(np.float32)
+    if evidence is None:
+        small,scale=detection_image(image)
+        gray=cv2.GaussianBlur(cv2.cvtColor(small,cv2.COLOR_BGR2GRAY),(5,5),0).astype(np.float32)
+    else:
+        small,scale,gray,*_=evidence
+        gray=gray.astype(np.float32)
     q=quad*scale
     sides=np.linalg.norm(np.roll(q,-1,axis=0)-q,axis=1)
     radius=min(24.,max(5.,float(sides.min())*.10))
@@ -368,7 +357,19 @@ def load_scoring_forest(path, modified_ns):
 
 def detect_screen(image: np.ndarray, *, square: bool = False) -> np.ndarray | None:
     import json
-    candidates=photo_candidates(image)
+    from white_border import detect_light_picture, light_score
+    light=detect_light_picture(image,order_corners,square=square)
+    if light is not None:
+        (score,quad,metrics),light_evidence=light
+        # Low-contrast/white sides rely on the full region and square prior.
+        # Refining them to stronger interior lines would cut off white content.
+        if min(metrics['edge_strength'])>25:
+            refined=refine_photo_edges(image,np.float32(quad))
+            checked=light_score(light_evidence,refined,square=square)
+            if checked is not None and checked[0]>=score-.02:return refined
+        return np.float32(quad)
+    evidence=photo_evidence(image)
+    candidates=photo_candidates(image,evidence=evidence)
     if not candidates:return None
     path=Path(__file__).with_name('screen_crop_model.json')
     if not path.exists():
@@ -406,14 +407,14 @@ def detect_screen(image: np.ndarray, *, square: bool = False) -> np.ndarray | No
         return None
     best=candidates[selected][0]
     if specialist_selected:
-        return guarded_refinement(image,np.float32(best),specialist,float(specialized_scores[selected]))
-    return refine_photo_edges(image,np.float32(best))
+        return guarded_refinement(image,np.float32(best),specialist,float(specialized_scores[selected]),evidence=evidence)
+    return refine_photo_edges(image,np.float32(best),evidence=evidence)
 
 
-def guarded_refinement(image, quad, forest, original_score):
+def guarded_refinement(image, quad, forest, original_score, *, evidence=None):
     """Avoid snapping a learned picture border inward to reflected/interior edges."""
-    refined=refine_photo_edges(image,quad)
-    small,scale,gray,hsv,texture,gradients=photo_evidence(image)
+    refined=refine_photo_edges(image,quad,evidence=evidence)
+    small,scale,gray,hsv,texture,gradients=evidence if evidence is not None else photo_evidence(image)
     features=quad_features(small,gray,hsv[:,:,1],texture,gradients,refined*scale)
     if features is not None:
         refined_score=float(forest.predict(np.float32([features]))[1][0,0])
@@ -585,9 +586,11 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
     # An incompatible installation is a batch-level error, not a bad photo.
     if not args.manual and not args.retry_failed:
         check_model_runtime()
-    success_dir.mkdir(parents=True, exist_ok=True)
-    failure_dir.mkdir(parents=True, exist_ok=True)
-    from batch_state import BatchSession, LabelStore, fingerprint, label_source
+    from batch_state import BatchSession, LabelStore, fingerprint, label_source, prepare_output_directories
+    output_directories = [destination, success_dir, failure_dir]
+    if args.debug: output_directories.append(destination/'_debug')
+    if args.retry_failed: output_directories.append(destination/'label_sources')
+    prepare_output_directories(output_directories)
     labels = LabelStore(destination)
     session = BatchSession(destination, source, files, args, __version__)
     interactive = args.manual or args.review or args.retry_failed

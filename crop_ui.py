@@ -10,7 +10,7 @@ import sys
 
 import numpy as np
 from PIL import Image, ImageTk, ImageOps
-from batch_state import atomic_json, load_preferences, read_json
+from batch_state import atomic_json, load_preferences, read_json, OutputDirectoryError
 
 
 @dataclass(frozen=True)
@@ -268,7 +268,9 @@ class CropWorkspace:
                   font=("Microsoft YaHei UI", 15, "bold")).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
         for row, label, variable in ((1,"原照片 / Photos",self.source),(2,"结果目录 / Results",self.output)):
             ttk.Label(panel, text=label, style="Card.TLabel").grid(row=row, column=0, sticky="w", padx=(0,12), pady=6)
-            ttk.Entry(panel, textvariable=variable).grid(row=row, column=1, sticky="ew", pady=6)
+            entry=ttk.Entry(panel, textvariable=variable)
+            entry.grid(row=row, column=1, sticky="ew", pady=6)
+            if row==2:self.output_entry=entry
             ttk.Button(panel, text="选择 / Browse", command=lambda v=variable: self.browse(v)).grid(row=row, column=2, padx=(12,0))
         options = ttk.Frame(panel, style="Card.TFrame")
         options.grid(row=3, column=0, columnspan=3, sticky="ew", pady=6)
@@ -416,6 +418,17 @@ class CropWorkspace:
         self.stats = dict(ok=0, skipped=0, error=0, existing=0)
         try:
             self.backend.run(args, workspace=self)
+        except OutputDirectoryError as exc:
+            self.busy = False
+            self.settings_button.configure(state='normal')
+            self._disable_actions()
+            self.show_settings()
+            self.output_entry.focus_set()
+            self.output_entry.selection_range(0,'end')
+            self.status.set('结果目录不可写，请更换目录或从桌面重新启动。 / Output unavailable: choose another folder or relaunch from desktop.')
+            from tkinter import messagebox
+            messagebox.showerror('无法保存结果 / Cannot save results',str(exc),parent=self.root)
+            return
         except (ValueError, OSError) as exc:
             self.busy = False
             self.settings_button.configure(state='normal')

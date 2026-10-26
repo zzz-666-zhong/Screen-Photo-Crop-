@@ -195,6 +195,16 @@ Labels are deduplicated by source hash and updated after reconfirmation. Unatten
 
 The exported JSON is readable by `train_screen_model.py`, initially with every row set to `split: train`. Inspect labels and reserve distinct capture groups for holdout before fitting; related derivatives must share a group. Export does not fit or replace models. Photos, labels, paths, and checkpoints stay local and are excluded from the public file manifest. See [training](TRAINING.md).
 
+## 浅色边缘图片 / Pictures with white or faint borders
+
+v0.5.0 自动识别先检查浅色背景中的完整图片边界。无需新开关；原本为正方形的目标继续选择正方形模式，可帮助补全与背景接近的一边。白底文字会尝试按整组内容定位，不做 OCR。普通横图、竖图保持完整图片模式。
+
+v0.5.0 first checks for whole-picture borders on light backgrounds. No new switch is needed. Use Square for originally square targets to help complete a faint side. White-page text is grouped for localization without OCR. Use Full picture for landscape/portrait targets.
+
+若目标只有几个字、大片空白、表格，或白边与背景完全相同，自动框仍可能不完整。请检查预览，直接点击原图重选四角，使用滚轮、选区 Focus 和拖动角点调整。识别耗时变化不包括读图、模型首次加载、预览和写入；详细基准见 [模型说明](MODEL_CARD.md)。
+
+Sparse characters, large blank regions, charts, and white margins indistinguishable from the background can still produce incomplete proposals. Inspect the preview, click the original to reselect corners, and use zoom/Focus/handle dragging. Detection benchmarks exclude image I/O, initial model loading, UI, and saving; see the [model card](MODEL_CARD.md).
+
 ## 3. 黑边处理与参数 / Black margins and options
 
 默认流程依据图片外边界去除屏幕背景，**不自动删除图片内部的近黑色行列**。这样可以保留黑衣服和暗色背景。自动边缘细化会额外向内微调约 0.5～2 个检测图像像素，以减轻透视插值残边；这个调整独立于默认值为 0 的 `--inset`，手动模式不执行自动边缘细化。
@@ -277,6 +287,7 @@ Exit codes: `0` means no processing errors, `1` indicates image-processing error
 
 | 情况 / Situation | 说明与处理 / Explanation and action |
 |---|---|
+| `[WinError 5] 拒绝访问` / Access denied | 程序预先检查结果目录和成功/失败子目录的创建、写入、重命名及临时文件清理。失败后返回设置并选中结果路径；换一个可写目录后重新开始。若同一目录在资源管理器中可写，可能是当前启动进程受限，关闭旧窗口并双击 `启动裁剪.cmd`。不必为此修改系统目录权限。 / Output folders are checked using actual create/write/rename/cleanup operations. A failure returns to settings with the output path selected. Choose a writable folder and retry. If File Explorer can write there, the current process may be restricted; close it and double-click the launcher. Changing system folder permissions is unnecessary. |
 | OpenCV 缺少 `ml.RTrees_create` | 当前解释器的 OpenCV 不兼容。使用启动器自动准备 OpenCV 4.x 独立环境；直接运行脚本也会检测并切换环境。 / The active OpenCV build is incompatible. The launcher prepares an isolated OpenCV 4.x environment; direct execution also detects the issue and switches environments. |
 | 初次下载的目录没有 `.crop-env` / Fresh download has no `.crop-env` | 这是正常情况，双击 `启动裁剪.cmd` 即可创建并安装；只安装可用 `安装环境.cmd`。 / This is expected; the launcher creates/installs it, or use the setup-only entry point. |
 | 双击 `.py` 打开编辑器或选择程序 / Double-clicking `.py` opens an editor or app picker | Windows 尚未将 Python 文件关联到解释器。使用 `启动裁剪.cmd`，或在终端运行 `python screen_crop.py`。 / Windows has no interpreter association for Python files. Use the `.cmd` launcher or run `python screen_crop.py` in a terminal. |

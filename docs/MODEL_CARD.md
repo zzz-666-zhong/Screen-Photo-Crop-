@@ -132,6 +132,63 @@ All 16 existing synthetic checks across eight categories and seeds 41/67 pass. F
 
 See [TRAINING.md](TRAINING.md) for evaluation commands. Augmentation, fitting, and anonymous metrics are inspectable; absent private originals prevent full reproduction of the real-photo portion from public files alone. Robustness improvements concern localization and do not restore details obscured by glare or blur.
 
+## v0.5.0 浅色背景完整边界 / Whole-picture borders on light backgrounds
+
+本次改进检测与评分流程，两个随机森林权重保持原 SHA-256，没有新增拟合权重。新增 [white_border.py](../white_border.py) 在最长边 700 像素副本上估计每个颜色通道的二次光照曲面，迭代保留残差较小的 65% 网格点拟合背景；亮度覆盖与背景残差不满足条件时直接走通用检测。
+
+This update changes detection/routing while retaining both forest hashes; no new weights were fitted. [white_border.py](../white_border.py) estimates a quadratic illumination surface per color channel on a copy up to 700 pixels, iteratively fitting the lowest-residual 65% of grid samples. Images without sufficient bright coverage or a smooth residual background use the general detector.
+
+多组背景差异阈值和闭运算生成边界候选，去掉连接到整张照片外围的干扰；白底文字按一组字符包围框生成候选。仅当开启正方形模式时，使用可见边长生成弱边补全候选。候选面积限制在原照片 3.5%–60%，按外围背景残差、边界内外对比、内部变化及形状参考评分，过滤平坦面板，并将分数接近但空间分离的多张图片交回通用检测。该规则分数不表示概率。
+
+Residual thresholds and morphological closing generate proposals, removing components connected to the image perimeter. White-page text gets grouped content envelopes. Only Square mode uses visible side lengths to complete weak sides. Proposals occupy 3.5%–60% of the photo and are scored using exterior residual, border contrast, interior variation, and shape. Flat panels are rejected; separate similarly scored pictures fall back to general detection. Rule scores are not probabilities.
+
+合格的完整区域优先于森林小目标候选，避免选择整张建筑内部的时钟、招牌或局部纹理。四边均有较强证据时才细化，并检查细化后的结构评分；浅色/弱边直接保留完整候选，减轻内缩。输出仍取自原照片。未通过浅底判断的照片继续使用原有通用/反光模型。
+
+Qualified whole-picture regions precede small-target proposals, avoiding clock/sign/texture fragments inside a larger picture. Refinement requires strong evidence on all four sides and a structural score check. Weak/light sides retain the full proposal. Exported pixels still come from originals; other photos keep the base/reflection model path.
+
+通用路径将四边的像素、梯度和纹理采样批量化，将每个候选多次分位数计算合并，并在生成候选、细化、复评分之间复用图像证据。24 特征顺序保持不变；数值差异约为浮点舍入量，原 11 张反光照片的逐张 IoU 保持一致。
+
+The general path batches four-side pixel/gradient/texture samples, combines repeated percentile work, and reuses evidence across proposal generation, refinement, and rescoring. Feature order is unchanged; differences are floating-point rounding scale. Per-photo IoU on the eleven reflection originals is unchanged.
+
+### 评估范围 / Evaluation scope
+
+用户确认了 5 张截图的目标边界：第一张小框是误检，应提取整张建筑；其余四张为完整图片边界。通过特征匹配映射到未标线原照片，目标相关系数为 0.952–0.998，并人工查看映射图。截图只用于标签，识别输入均为原照片。5 张都用于开发，不能作为独立验证。
+
+The user confirmed the intended borders in five screenshots: the first small box was an error and should enclose the building picture; the other four show complete borders. Feature alignment maps them to unmarked originals, with target correlations 0.952–0.998 and visual inspection. Screenshots supply labels only; detection reads originals. All five were development examples, not independent validation.
+
+从既有人工修改记录中，排除这 5 张后按固定间隔另取 12 张，先固定名单与检查标签，再查看新版本成绩；未按这 12 张的结果调阈值。其后补充的平坦面板否定测试只调整内部变化检查。它们与开发图共享设备、环境和相近角度，属于同场景检查。旧反光集 11 张用于回归保留检查，其中 8 张曾训练过反光模型。
+
+Twelve other manually corrected captures were selected at fixed intervals after excluding those five, with the list/labels fixed before inspecting new results. Their scores did not tune thresholds; a later synthetic flat-panel negative only tightened interior variation checking. They share devices/environment/viewpoints and are same-session checks. The eleven earlier reflection captures verify retention; eight previously trained the reflection forest.
+
+| 分组 / Group | v0.4.1 达标 / Passes | v0.5.0 达标 / Passes | 旧平均 IoU / Old mean | 新平均 IoU / New mean | 旧识别中位数 / Old time | 新识别中位数 / New time |
+|---|---:|---:|---:|---:|---:|---:|
+| 提供的困难示例 / Supplied examples | 0/5 | 5/5 | 3.28% | 95.79% | 1.412 s | 0.058 s |
+| 另取人工修正照片 / Additional corrected captures | 0/12 | 8/12 | 17.80% | 76.95% | 1.262 s | 0.070 s |
+| 反光原图回归 / Reflection retention | 11/11 | 11/11 | 91.03% | 91.03% | 2.337 s | 1.556 s |
+
+达标线为 IoU ≥ 0.85。识别时间为每图每版 3 次调用中位数，再取组中位数；预加载森林，排除读图、首次模型加载、预览和保存，两个版本逐图交替执行顺序。运行环境：Windows 11、Intel Core i7-14650HX、Python 3.12.14、OpenCV 4.14.0、NumPy 2.5.3，CPU 本地运行。时间不代表其他硬件或端到端批次速度。
+
+Passing means IoU ≥ 0.85. Times are per-photo medians of three calls, then group medians. Forests are preloaded; image I/O, initial model loading, UI, and saving are excluded. Backend order alternates by photo. Environment: Windows 11, Intel Core i7-14650HX, Python 3.12.14, OpenCV 4.14.0, NumPy 2.5.3, local CPU. These are not other-hardware or end-to-end batch timings.
+
+逐张匿名指标见 [white-border-v050.csv](white-border-v050.csv)。额外检查的 `white_check_06`、`07`、`09`、`12` 仍未达标，分别涉及数字/代码、大留白标题、图表及文字标题。未声明已解决所有白底边界；无可见边缘时可能无法推断原图的精确留白，应人工选四角。旧 16 个合成回归全部通过，逐张见 [recognition-v050.csv](recognition-v050.csv)。新增合成测试覆盖白边、单侧弱边、文字页、竖图、平坦面板和多目标歧义。
+
+See [anonymous per-photo metrics](white-border-v050.csv). Additional cases `white_check_06`, `07`, `09`, and `12` remain below threshold: numbers/code, a sparse heading, a chart, and a text heading. Exact blank margins may be impossible to infer without a visible border; select corners manually. All sixteen earlier synthetic checks pass; see [recognition-v050.csv](recognition-v050.csv). New synthetic tests cover white frames, a faint side, text pages, portraits, flat panels, and ambiguous multiple targets.
+
+### 复评与计时 / Reproduction and timing
+
+使用 [训练文档](TRAINING.md) 的标签格式，将旧脚本和匹配模型放在独立目录。以下命令默认每图重复 3 次，输出路径必须尚不存在：
+
+Use the label format in [TRAINING.md](TRAINING.md), retaining the old script and matching models in a separate folder. The command repeats each photo three times; the output must not already exist:
+
+```powershell
+python scripts/benchmark_detection.py "dataset.json" --baseline "previous_version" --output "border_comparison.csv" --repeats 3
+python -m unittest discover -s tests -p test_white_border.py -v
+```
+
+私人原图及坐标不随公开仓库发布，完整真实图复评需要自行持有相同原图。公开合成生成器 [white_border_scenes.py](../examples/white_border_scenes.py) 不使用私人图像。
+
+Private originals and coordinates are excluded; full real-photo reproduction requires those files. The public [synthetic generator](../examples/white_border_scenes.py) uses no private images.
+
 ## 限制 / Limitations
 
 - 灰度检测需要可辨认四边及内部纹理；平坦内容、文本面板或复杂背景可能漏检或误检。 / Grayscale detection needs distinguishable borders and interior texture; flat content, text panels, or complex backgrounds may be missed or misidentified.

@@ -1,12 +1,31 @@
 """Test crop decisions independently of Tk and desktop availability."""
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import numpy as np
 from PIL import Image
 import screen_crop as crop
 from crop_ui import CropSelection, CropWorkspace, ImageViewport, ImageNavigation
+from batch_state import OutputDirectoryError
+
+
+class OutputRecoveryTests(unittest.TestCase):
+    def test_unwritable_output_returns_to_settings_without_retrying_or_changing_options(self):
+        workspace=CropWorkspace.__new__(CropWorkspace)
+        error=OutputDirectoryError('blocked-results',PermissionError(13,'Access denied'))
+        workspace.backend=SimpleNamespace(run=Mock(side_effect=error))
+        workspace.root=Mock();workspace.settings_button=Mock();workspace.output_entry=Mock()
+        workspace._disable_actions=Mock();workspace.show_settings=Mock();workspace.status=Mock()
+        args=crop.parser().parse_args(['input','blocked-results','--manual','--square'])
+        with patch('tkinter.messagebox.showerror') as showerror:
+            workspace._run_batch(args)
+        self.assertFalse(workspace.busy)
+        workspace.backend.run.assert_called_once_with(args,workspace=workspace)
+        workspace.show_settings.assert_called_once()
+        workspace.output_entry.focus_set.assert_called_once()
+        self.assertTrue(args.manual and args.square)
+        showerror.assert_called_once()
 
 
 class SelectionTests(unittest.TestCase):

@@ -9,7 +9,8 @@ import numpy as np
 from PIL import Image
 
 import screen_crop as crop
-from batch_state import LabelStore, fingerprint, load_preferences, atomic_json
+from batch_state import (LabelStore, fingerprint, load_preferences, atomic_json,
+                         prepare_output_directories, OutputDirectoryError)
 from crop_ui import CropSelection
 from train_screen_model import read_dataset
 
@@ -31,6 +32,61 @@ class BatchStateTests(unittest.TestCase):
 
     def args(self,*extra):
         return crop.parser().parse_args([str(self.source),str(self.output),'--manual',*extra])
+
+    def test_output_preflight_uses_real_writes_without_changing_existing_files(self):
+        self.output.mkdir()
+        original=self.output/'crop_session.json'
+        original.write_bytes(b'previous checkpoint')
+        directories=[self.output,self.output/crop.SUCCESS_FOLDER,self.output/crop.FAILURE_FOLDER]
+        prepare_output_directories(directories)
+        self.assertEqual(original.read_bytes(),b'previous checkpoint')
+        self.assertTrue(all(folder.is_dir() for folder in directories))
+        self.assertEqual(list(self.output.rglob('.screen-crop-check-*')),[])
+
+    def test_denied_success_folder_does_not_replace_checkpoint_or_start_review(self):
+        self.output.mkdir()
+        checkpoint=self.output/'crop_session.json';checkpoint.write_bytes(b'keep progress')
+        mkdir=Path.mkdir
+        def guarded(path,*args,**kwargs):
+            if path==self.output/crop.SUCCESS_FOLDER:
+                raise PermissionError(13,'Access denied',str(path))
+            return mkdir(path,*args,**kwargs)
+        with patch.object(Path,'mkdir',new=guarded),patch.object(self.workspace,'review',create=True) as review:
+            with self.assertRaises(OutputDirectoryError) as error:
+                crop.run(self.args(),workspace=self.workspace)
+        self.assertEqual(error.exception.directory,self.output/crop.SUCCESS_FOLDER)
+        self.assertIn('启动裁剪.cmd',str(error.exception))
+        self.assertEqual(checkpoint.read_bytes(),b'keep progress')
+        review.assert_not_called()
+
+    def test_denied_probe_rename_is_reported_and_cleans_unique_files(self):
+        with patch.object(Path,'replace',side_effect=PermissionError(13,'Access denied')):
+            with self.assertRaises(OutputDirectoryError):prepare_output_directories([self.output])
+        self.assertEqual(list(self.output.iterdir()),[])
+
+    def test_denied_file_creation_fails_once_even_when_access_check_says_writable(self):
+        self.output.mkdir()
+        original=self.output/'crop_session.json';original.write_bytes(b'preserved checkpoint')
+        real_open=Path.open
+        attempts=[]
+        def denied(path,mode='r',*args,**kwargs):
+            if mode in ('x','xb'):
+                attempts.append(path)
+                raise PermissionError(13,'Access denied',str(path))
+            return real_open(path,mode,*args,**kwargs)
+        with patch.object(Path,'open',new=denied),patch('os.access',return_value=True):
+            with self.assertRaises(OutputDirectoryError):prepare_output_directories([self.output])
+            self.assertEqual(len(attempts),1)
+            with self.assertRaises(PermissionError):atomic_json(original,{'replacement':True})
+        self.assertEqual(len(attempts),2)
+        self.assertEqual(original.read_bytes(),b'preserved checkpoint')
+        self.assertEqual(list(self.output.iterdir()),[original])
+
+    def test_output_path_occupied_by_a_file_reports_conflict_and_retains_file(self):
+        self.output.write_bytes(b'not a directory')
+        with self.assertRaisesRegex(OutputDirectoryError,'同名文件'):
+            prepare_output_directories([self.output/crop.SUCCESS_FOLDER])
+        self.assertEqual(self.output.read_bytes(),b'not a directory')
 
     def result(self,image,quad=None):
         quad=self.quad if quad is None else quad
