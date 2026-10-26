@@ -46,15 +46,18 @@ class BatchStateTests(unittest.TestCase):
     def test_denied_success_folder_does_not_replace_checkpoint_or_start_review(self):
         self.output.mkdir()
         checkpoint=self.output/'crop_session.json';checkpoint.write_bytes(b'keep progress')
+        # Hosted Windows temp paths may use short names or junction aliases;
+        # run_batch resolves paths before invoking the filesystem operation.
+        denied_directory=(self.output/crop.SUCCESS_FOLDER).resolve()
         mkdir=Path.mkdir
         def guarded(path,*args,**kwargs):
-            if path==self.output/crop.SUCCESS_FOLDER:
+            if path.resolve()==denied_directory:
                 raise PermissionError(13,'Access denied',str(path))
             return mkdir(path,*args,**kwargs)
         with patch.object(Path,'mkdir',new=guarded),patch.object(self.workspace,'review',create=True) as review:
             with self.assertRaises(OutputDirectoryError) as error:
                 crop.run(self.args(),workspace=self.workspace)
-        self.assertEqual(error.exception.directory,self.output/crop.SUCCESS_FOLDER)
+        self.assertEqual(error.exception.directory,denied_directory)
         self.assertIn('启动裁剪.cmd',str(error.exception))
         self.assertEqual(checkpoint.read_bytes(),b'keep progress')
         review.assert_not_called()
