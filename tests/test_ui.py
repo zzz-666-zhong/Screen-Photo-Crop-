@@ -114,6 +114,48 @@ class SelectionTests(unittest.TestCase):
                 callback.assert_not_called()
 
 
+class ManualDetectionTests(unittest.TestCase):
+    def make_workspace(self, result):
+        workspace=CropWorkspace.__new__(CropWorkspace)
+        args=crop.parser().parse_args(['input','output','--manual'])
+        image=np.zeros((100,140,3),np.uint8)
+        workspace.selection=CropSelection(image,args,crop)
+        original=np.float32([[5,5],[130,5],[130,90],[5,90]])
+        workspace.selection.set_corners(original)
+        workspace.selection.manual_modified=True
+        workspace.busy=True
+        workspace.closed=False
+        workspace.future=None
+        workspace.current_index=1
+        workspace.action=Mock(get=Mock(return_value='pending'))
+        workspace.status=Mock()
+        workspace._disable_actions=Mock()
+        workspace._selection_changed=Mock()
+        for name in ('skip_button','stop_button','pause_button','previous_button'):
+            setattr(workspace,name,Mock())
+        future=Mock(done=Mock(return_value=True),result=Mock(return_value=result))
+        workspace.executor=Mock(submit=Mock(return_value=future))
+        workspace.backend=crop
+        return workspace,original
+
+    def test_manual_detect_button_shows_proposal_without_saving(self):
+        proposal=np.float32([[20,15],[120,15],[120,85],[20,85]])
+        workspace,_=self.make_workspace(proposal)
+        workspace.detect_current()
+        np.testing.assert_allclose(workspace.selection.points,proposal)
+        self.assertFalse(workspace.selection.manual_modified)
+        self.assertEqual(workspace.automatic_quad,proposal.tolist())
+        workspace.action.set.assert_not_called()
+
+    def test_failed_manual_detection_keeps_existing_points(self):
+        workspace,original=self.make_workspace(None)
+        workspace.detect_current()
+        np.testing.assert_allclose(workspace.selection.points,original)
+        self.assertTrue(workspace.selection.manual_modified)
+        self.assertIn('未找到可信边界',workspace.status.set.call_args.args[0])
+        workspace.action.set.assert_not_called()
+
+
 class DirectRecropTests(unittest.TestCase):
     def setUp(self):
         SelectionTests.setUp(self)

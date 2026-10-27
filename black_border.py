@@ -176,6 +176,13 @@ def frame_score(gray,quad,*,square=False):
     support = np.mean(contrast>np.maximum(6.,noise[:,None]*1.8),axis=1)
     if support.min()<.64 or np.percentile(exterior,25)<85 or noise.max()>18:
         return None
+    # A pair of separate rectangles must not be joined across a long empty gap.
+    supported=contrast>np.maximum(6.,noise[:,None]*1.8)
+    for side in supported:
+        breaks=np.diff(np.r_[0,(~side).astype(np.int8),0])
+        gaps=np.flatnonzero(breaks==-1)-np.flatnonzero(breaks==1)
+        if len(gaps) and gaps.max()>.26*len(side):
+            return None
     strength = np.percentile(contrast,35,axis=1)
     if strength.min()<7:
         return None
@@ -226,18 +233,25 @@ def detect_black_frame(image,order_corners,*,square=False):
     small = cv2.resize(image,None,fx=scale,fy=scale,interpolation=cv2.INTER_AREA)
     gray = cv2.GaussianBlur(cv2.cvtColor(small,cv2.COLOR_BGR2GRAY),(3,3),.6)
     ranked = []
-    for quad in frame_proposals(gray):
-        score = frame_score(gray,quad,square=False)
-        if score is not None:
-            sides=np.linalg.norm(np.roll(quad,-1,axis=0)-quad,axis=1)
-            aspect=abs(np.log((sides[0]+sides[2])/(sides[1]+sides[3])))
-            area=abs(cv2.contourArea(quad))/gray.size
-            # An internal table cell can have stronger edges than the complete
-            # picture. Prefer an enclosing frame, using the square prior only
-            # when the user selected an originally square target.
-            score += (.6 if square else .08)*np.log(area)
-            if square:score -= .6*aspect
-            ranked.append((score,quad))
+    def rank(proposals):
+        for quad in proposals:
+            # Even enhanced proposals must have support in the original pixels.
+            score = frame_score(gray,quad,square=False)
+            if score is not None:
+                sides=np.linalg.norm(np.roll(quad,-1,axis=0)-quad,axis=1)
+                aspect=abs(np.log((sides[0]+sides[2])/(sides[1]+sides[3])))
+                area=abs(cv2.contourArea(quad))/gray.size
+                # Prefer the enclosing frame over internal table lines.
+                score += (1.0 if not square else .6)*np.log(area)
+                if square:score -= .6*aspect
+                ranked.append((score,quad))
+    rank(frame_proposals(gray))
+    if not ranked:
+        # For motion-softened lines, strengthen edges only to generate extra
+        # candidates; score and inset them on the untouched image above.
+        smooth=cv2.GaussianBlur(gray,(0,0),2)
+        enhanced=cv2.addWeighted(gray,9.,smooth,-8.,0)
+        rank(frame_proposals(enhanced))
     if not ranked:
         return None
     ranked.sort(key=lambda row:-row[0])

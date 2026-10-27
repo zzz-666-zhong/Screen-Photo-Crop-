@@ -27,7 +27,7 @@ except ImportError as exc:
     ) from exc
 
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 SUCCESS_FOLDER = "裁剪成功"
@@ -356,11 +356,24 @@ def load_scoring_forest(path, modified_ns):
 
 
 def detect_screen(image: np.ndarray, *, square: bool = False) -> np.ndarray | None:
+    """Detect complete picture bounds, including light pages and thin dark frames."""
+    return _detect_screen_general(image, square=square, include_frame=True)
+
+
+def _detect_screen_general(image: np.ndarray, *, square: bool = False,
+                           include_frame: bool = False) -> np.ndarray | None:
     import json
     from white_border import detect_light_picture, light_score
     light=detect_light_picture(image,order_corners,square=square)
     if light is not None:
         (score,quad,metrics),light_evidence=light
+        if include_frame and min(metrics['edge_strength'])>60:
+            frame=detect_black_border(image,square=square)
+            if frame is not None:
+                intersection,_=cv2.intersectConvexConvex(np.float32(quad),frame)
+                union=abs(cv2.contourArea(np.float32(quad)))+abs(cv2.contourArea(frame))-intersection
+                if union>0 and intersection/union>.9:
+                    return frame
         # Low-contrast/white sides rely on the full region and square prior.
         # Refining them to stronger interior lines would cut off white content.
         if min(metrics['edge_strength'])>25:
@@ -368,6 +381,18 @@ def detect_screen(image: np.ndarray, *, square: bool = False) -> np.ndarray | No
             checked=light_score(light_evidence,refined,square=square)
             if checked is not None and checked[0]>=score-.02:return refined
         return np.float32(quad)
+    if include_frame:
+        # A supported, complete dark outline is useful for text images whose
+        # pale interior offers little color/texture evidence to the forest.
+        # Light-picture detection must run first to preserve white margins.
+        frame=detect_black_border(image,square=square)
+        if frame is not None:
+            target=np.float32([[0,0],[63,0],[63,63],[0,63]])
+            sample=cv2.warpPerspective(image,cv2.getPerspectiveTransform(frame,target),(64,64))
+            # A plain dark UI panel is not evidence of a picture; sparse text
+            # and dark photographs still have meaningful interior variation.
+            if np.std(cv2.cvtColor(sample,cv2.COLOR_BGR2GRAY))>=6:
+                return frame
     evidence=photo_evidence(image)
     candidates=photo_candidates(image,evidence=evidence)
     if not candidates:return None
@@ -515,7 +540,7 @@ def detect_black_border(image: np.ndarray, *, square: bool = False) -> np.ndarra
     # Consult the general detector only in this uncertain case. Never replace a
     # frame with a disjoint proposal or one that does not enclose its content.
     try:
-        alternate=detect_screen(image,square=True)
+        alternate=_detect_screen_general(image,square=True)
         if alternate is None:return proposed
         alternate=order_corners(alternate)
         proposed_area=abs(cv2.contourArea(proposed))

@@ -1,5 +1,11 @@
 # 更新记录 / Changelog
 
+## 0.9.0 — 2026-10-27
+
+- 普通自动识别支持浅色文字图片和细黑框，优先保留完整白色边缘；固定坐标首张复用此识别。 / General detection handles light text and thin dark frames while preserving white margins; Fixed uses it for the first image.
+- 手动及失败补裁新增按需“识别边界”，识别失败保留现有选点。 / Add on-demand Detect in Manual and Retry; failed detection preserves existing points.
+- 为运动模糊补充候选边缘，并用原图验证；避免将分开的框拼成一个目标。 / Generate additional candidates for motion blur and validate on original pixels; avoid joining separate frames.
+
 ## 0.8.0 — 2026-10-27
 
 - 加强黑边候选排序，降低内部表格线、色块及局部边框对完整外框的干扰；正方形模式对明显截断的结果有条件地参考现有通用模型。 / Rank complete black-border candidates against internal table lines and colored blocks; conditionally consult the general model for visibly truncated square proposals.

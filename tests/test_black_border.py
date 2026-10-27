@@ -56,14 +56,14 @@ class BlackBorderDetectionTests(unittest.TestCase):
         partial=np.float32([[200,150],[500,150],[500,360],[200,360]])
         enclosing=np.float32([[200,105],[500,105],[500,405],[200,405]])
         unrelated=np.float32([[30,30],[120,30],[120,120],[30,120]])
-        with patch('black_border.detect_black_frame',return_value=partial),patch.object(crop,'detect_screen',return_value=enclosing) as general:
+        with patch('black_border.detect_black_frame',return_value=partial),patch.object(crop,'_detect_screen_general',return_value=enclosing) as general:
             np.testing.assert_allclose(crop.detect_black_border(image,square=True),enclosing)
             general.assert_called_once()
-        with patch('black_border.detect_black_frame',return_value=partial),patch.object(crop,'detect_screen',return_value=unrelated):
+        with patch('black_border.detect_black_frame',return_value=partial),patch.object(crop,'_detect_screen_general',return_value=unrelated):
             np.testing.assert_allclose(crop.detect_black_border(image,square=True),partial)
-        with patch('black_border.detect_black_frame',return_value=partial),patch.object(crop,'detect_screen',side_effect=ValueError('unavailable')):
+        with patch('black_border.detect_black_frame',return_value=partial),patch.object(crop,'_detect_screen_general',side_effect=ValueError('unavailable')):
             np.testing.assert_allclose(crop.detect_black_border(image,square=True),partial)
-        with patch('black_border.detect_black_frame',return_value=None),patch.object(crop,'detect_screen') as general:
+        with patch('black_border.detect_black_frame',return_value=None),patch.object(crop,'_detect_screen_general') as general:
             self.assertIsNone(crop.detect_black_border(image,square=True))
             general.assert_not_called()
 
@@ -119,6 +119,24 @@ class BlackBorderDetectionTests(unittest.TestCase):
                 corners=crop.detect_black_border(image)
                 self.assertIsNotNone(corners)
                 self.assertGreater(overlap(corners,expected),.92)
+
+    def test_motion_blurred_text_frame_in_both_automatic_paths(self):
+        image,expected=framed_scene(text=True,glare=True)
+        image=cv2.filter2D(image,-1,np.eye(13,dtype=np.float32)/13)
+        for detector in (crop.detect_black_border,crop.detect_screen):
+            with self.subTest(detector=detector.__name__):
+                corners=detector(image,square=True)
+                self.assertIsNotNone(corners)
+                self.assertGreater(overlap(corners,expected),.93)
+
+    def test_normal_detection_includes_text_and_frame_without_forcing_square(self):
+        for text in (True,False):
+            image,expected=framed_scene(text=text,blur=True,glare=True)
+            image=cv2.resize(image,(1400,560))
+            expected=expected*np.float32([1.4,.8])
+            corners=crop.detect_screen(image)
+            self.assertIsNotNone(corners)
+            self.assertGreater(overlap(corners,expected),.90)
 
     def test_plain_panel_bezel_and_missing_side_require_manual_points(self):
         image=np.full((650,950,3),185,np.uint8)

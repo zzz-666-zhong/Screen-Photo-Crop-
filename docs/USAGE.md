@@ -47,6 +47,10 @@ With no arguments, the startup page lets you choose folders, Review/Black-border
 
 ## 黑边识别 · 手动确认 / Black-border detection with manual confirmation
 
+普通自动识别也可识别文字图片和细黑框。固定坐标模式会识别第一张，确认后仍按固定坐标处理后续图片。手动四角和失败补裁默认等待选点；如需识别，点击 **“识别边界 / Detect”**，检查并调整建议后再保存。识别失败不会清除已有选点。
+
+Normal detection also handles text pictures and thin dark frames. Fixed mode detects its first reference and then reuses the confirmed coordinates. Manual and Retry wait for points by default; click **Detect** to request a proposal and inspect it before saving. If detection fails, existing points are preserved.
+
 适用于浅色屏幕背景中带细黑框的照片或文字图片，检测目标为中间图片的四边。先选择“黑边识别 · 逐张确认”，然后开始裁剪。左侧显示自动四角，右侧显示结果；只有检查、调整并按 Enter 后才保存并进入下一张。每张都重新识别和等待确认。
 
 Use this for a photo/text picture with a thin dark outline on a lighter screen background. Select Black-border review and Start. The left shows proposed corners and the right shows the result. Inspect/adjust the proposal, then press Enter to save and advance. Each image is detected separately and waits for confirmation.

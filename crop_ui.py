@@ -360,6 +360,8 @@ class CropWorkspace:
         toolbar.pack(fill="x", pady=(0,4))
         self.reset_button = ttk.Button(toolbar,text="重新裁剪 / Re-crop (R)",command=self.recrop)
         self.reset_button.pack(side="left")
+        self.detect_button = ttk.Button(toolbar,text="识别边界 / Detect",command=self.detect_current)
+        self.detect_button.pack(side="left",padx=(8,0))
         self.undo_button = ttk.Button(toolbar,text="撤销 / Undo",command=self.undo)
         self.undo_button.pack(side="left",padx=8)
         self.stop_button = ttk.Button(toolbar,text="结束 / Stop",command=self.stop)
@@ -798,6 +800,18 @@ class CropWorkspace:
         detector=self.backend.detect_black_border if args.black_review else self.backend.detect_screen
         return detector(image,square=args.square)
 
+    def detect_current(self):
+        """Offer detection in manual/retry too; preserve existing points on failure."""
+        if self.selection is None or self.future is not None or not self.busy:
+            return
+        self.drag_index = self.reselect_point = None
+        self._disable_actions()
+        for button in (self.skip_button,self.stop_button,self.pause_button):
+            button.configure(state='normal')
+        self.status.set('正在识别边界，请稍候 / Detecting boundaries…')
+        self.future=self.executor.submit(self.detect_review_corners,self.selection.image,self.selection.args)
+        self._poll_detection()
+
     def _poll_detection(self):
         self.poll_id = None
         if self.closed or self.action.get() != "pending":
@@ -806,22 +820,25 @@ class CropWorkspace:
             self.poll_id = self.root.after(60, self._poll_detection)
             return
         error = ""
+        corners = None
         try:
             corners = self.future.result()
             if corners is not None:
                 self.selection.set_corners(corners)
+                self.selection.manual_modified=False
                 self.automatic_quad=corners.astype(float).tolist()
         except Exception as exc:
             error = str(exc)
         self.future = None
         self._selection_changed()
+        self.previous_button.configure(state='normal' if self.current_index>0 and not self.selection.args.fixed else 'disabled')
         if error:
             self.status.set(f"识别不可用，请手动选四角 / Select corners manually · {error}")
-        elif self.selection.args.black_review and not self.selection.points:
-            self.status.set('未找到可信细黑框，请放大后手动选四角 / No reliable frame; zoom in and select four corners manually')
+        elif corners is None:
+            self.status.set('未找到可信边界，可放大后手动选四角 / No reliable boundary; zoom in and select corners manually')
 
     def _disable_actions(self):
-        for button in (self.save_button,self.reset_button,self.undo_button,self.skip_button,self.stop_button,
+        for button in (self.save_button,self.reset_button,self.detect_button,self.undo_button,self.skip_button,self.stop_button,
                        self.previous_button,self.pause_button,self.resume_button):
             button.configure(state="disabled")
 
@@ -831,6 +848,7 @@ class CropWorkspace:
         ready = preview is not None and self.drag_index is None
         self.save_button.configure(state="normal" if ready else "disabled")
         self.reset_button.configure(state="normal")
+        self.detect_button.configure(state="normal")
         self.undo_button.configure(state="normal" if self.selection.points else "disabled")
         self.preview_detail.set(f"{preview.shape[1]} × {preview.shape[0]} px · 尚未保存 / Not saved" if ready else "等待有效四角 / Waiting for valid corners")
         ready_message = ("四角确认后按 Enter：后续按相同坐标自动导出，无需逐张审核 / Enter: confirm corners and export the rest without review"
