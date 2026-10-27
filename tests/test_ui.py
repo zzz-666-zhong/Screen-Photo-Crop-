@@ -103,6 +103,16 @@ class SelectionTests(unittest.TestCase):
         workspace._enter(event)
         self.assertEqual(state['value'],'pending')
 
+    def test_filter_and_image_list_keyboard_input_never_triggers_crop_shortcuts(self):
+        workspace=CropWorkspace.__new__(CropWorkspace)
+        workspace.busy=True
+        callback=Mock()
+        for widget_class in ('TCombobox','Treeview','Listbox','TEntry'):
+            with self.subTest(widget_class=widget_class):
+                event=SimpleNamespace(widget=SimpleNamespace(winfo_class=lambda:widget_class))
+                workspace._shortcut(event,callback)
+                callback.assert_not_called()
+
 
 class DirectRecropTests(unittest.TestCase):
     def setUp(self):

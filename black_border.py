@@ -204,7 +204,7 @@ def inset_border(gray,quad):
         if depth>8:
             recovered=np.flatnonzero((np.arange(len(offsets))>low)&(profile>=profile[low]+.75*depth))
             if len(recovered) and offsets[recovered[0]]<=6:
-                distance=max(.8,float(offsets[recovered[0]]))
+                distance=max(.8,min(2.,float(offsets[recovered[0]])))
         lines.append((start+normal*distance,direction))
     corners=[]
     for i in range(4):
@@ -227,8 +227,16 @@ def detect_black_frame(image,order_corners,*,square=False):
     gray = cv2.GaussianBlur(cv2.cvtColor(small,cv2.COLOR_BGR2GRAY),(3,3),.6)
     ranked = []
     for quad in frame_proposals(gray):
-        score = frame_score(gray,quad,square=square)
+        score = frame_score(gray,quad,square=False)
         if score is not None:
+            sides=np.linalg.norm(np.roll(quad,-1,axis=0)-quad,axis=1)
+            aspect=abs(np.log((sides[0]+sides[2])/(sides[1]+sides[3])))
+            area=abs(cv2.contourArea(quad))/gray.size
+            # An internal table cell can have stronger edges than the complete
+            # picture. Prefer an enclosing frame, using the square prior only
+            # when the user selected an originally square target.
+            score += (.6 if square else .08)*np.log(area)
+            if square:score -= .6*aspect
             ranked.append((score,quad))
     if not ranked:
         return None

@@ -4,7 +4,7 @@
 
 Extract complete pictures from photographed screens with automatic corner detection, perspective correction, and dark-content preservation. Includes a pretrained model, a single-page preview, Enter-to-save review, manual re-cropping, and square mode.
 
-**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.7.0**
+**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.8.0**
 
 [使用指南 / Usage](docs/USAGE.md) · [模型与评估 / Model & evaluation](docs/MODEL_CARD.md) · [继续训练 / Training](docs/TRAINING.md) · [发布指南 / Publishing](docs/PUBLISHING.md)
 
@@ -19,6 +19,7 @@ Extract complete pictures from photographed screens with automatic corner detect
 | 默认保留黑衣服、黑背景；需要时显式开启黑边清除。 | Preserves dark clothing and backgrounds by default; black-margin trimming is opt-in. |
 | 自动批处理、逐张审核、手动选四角、失败补裁。 | Automatic batches, review, manual corners, and failure retries. |
 | 黑边识别确认：定位中间目标图片的细黑框，预览、放大或调整四角后，按 Enter 逐张确认保存。 | Black-border review: locate the target picture's thin dark frame, preview/zoom/adjust corners, then press Enter to confirm each crop. |
+| 右侧图片状态面板显示已裁、未裁、草稿、跳过、失败和处理进度，可筛选未裁剪图片并双击跳转。 | The image-status panel shows cropped, uncropped, drafts, skipped, errors, and progress; filter uncropped photos and double-click to navigate. |
 | 固定坐标：首张确认四角，后续按同一组原图坐标批量导出，无需重复识别或逐张审核；支持暂停续跑。 | Fixed coordinates: confirm corners once, then export remaining photos at the same source-pixel coordinates without detection or review; pause/resume supported. |
 | 原图、四角调整与裁剪结果在同一页面；四角有效后自动预览，按一次 Enter 保存并下一张。 | Original, corner editing, and crop preview share one page; valid corners preview immediately, and one Enter saves and advances. |
 | 预览就绪后直接点击左侧原图重选四角，点击位置作为第一个点；按住角点拖动仍可微调。 | Click the left original to reselect four corners, using that click as the first point; dragging a handle still adjusts it. |
@@ -133,9 +134,19 @@ python screen_crop.py "D:\拍屏照片" "D:\裁剪结果" --black-review --squar
 python screen_crop.py "D:\拍屏照片" "D:\裁剪结果" --black-review --square --resume
 ```
 
-别名为 `--black-border-review`。适合浅色屏幕背景上的细黑框，照片和文字图片均可；不以最外侧整块显示屏为目标。默认保留照片内部的暗色内容，无需开启“清除黑边”。未检测到可信四边时，可手动选择四点后确认。支持暂停恢复、上一张修改、失败补裁和人工确认标签。此模式使用独立的边框检测，不重新训练或更改随附森林权重。
+别名为 `--black-border-review`。适合浅色屏幕背景上的细黑框，照片和文字图片均可；不以最外侧整块显示屏为目标。默认保留照片内部的暗色内容，无需开启“清除黑边”。未检测到可信四边时，可手动选择四点后确认。支持暂停恢复、上一张修改、失败补裁和人工确认标签。原本为正方形的目标请选择 Square，可帮助区分完整外框和内部表格线；边界明显不完整时会有条件地尝试现有通用模型，模型权重不变。
 
-`--black-border-review` is an alias. This mode suits thin dark outlines on a lighter screen background, including photographic and text content; it targets the inner picture. Dark content inside the picture is retained by default, so Trim black is unnecessary. Select four points manually if detection is uncertain. Pause/Resume, Previous, failure retries, and reviewed labels remain available. This uses a separate border detector without retraining or changing the bundled forest weights.
+`--black-border-review` is an alias. This mode suits thin dark outlines on a lighter screen background, including photographic and text content; it targets the inner picture. Dark content inside the picture is retained by default, so Trim black is unnecessary. Select four points manually if detection is uncertain. Pause/Resume, Previous, failure retries, and reviewed labels remain available. Select Square for an originally square target to help distinguish the full frame from interior table lines; visibly incomplete proposals can conditionally use the existing general model. Forest weights are unchanged.
+
+### 图片状态和裁剪进度 / Image status and crop progress
+
+开始或继续批次后，右侧显示当前文件夹的图片列表及 **已裁、未裁、草稿、跳过、失败、已处理** 数量。下拉框可筛选“未裁剪”，其中包括尚未处理、跳过或失败且没有成功输出的图片；双击条目可跳转到该图片。点击“刷新”重新检查结果目录中的文件。底部进度条表示已有裁剪结果的比例。
+
+After starting or resuming a batch, the right panel lists the folder's images and counts **cropped, uncropped, drafts, skipped, errors, and processed**. Filter No crop to find images without a successful output, including pending, skipped, and failed photos; double-click a row to navigate. Refresh rescans output files. The bottom progress bar shows the proportion with cropped results.
+
+“已裁”按 `裁剪成功` 中实际存在的输出文件统计；“已处理”按本批次记录统计，包含跳过和失败，因此两者可能不同。已有结果但正在重新调整的图片会标记为“已裁·草稿”；记录显示成功但文件已被移走时，显示“结果缺失”。固定坐标模式仍需开始新批次才能更改统一坐标。
+
+Cropped counts actual files in `裁剪成功`; Processed uses batch records and includes skipped/errors, so the totals can differ. An existing crop with an unfinished edit is marked Saved·Draft; a successful record with a missing file is marked Missing. Fixed-coordinate batches still require a new batch to change their shared corners.
 
 ### 固定坐标：确认一次，批量导出 / Fixed coordinates: confirm once, export a batch
 

@@ -62,9 +62,23 @@ Use this for a photo/text picture with a thin dark outline on a lighter screen b
 - 默认保留目标内部黑衣服、阴影等暗色内容。“清除黑边”仍是额外的像素行列裁边选项，通常保持关闭。 / Dark clothing/shadows are retained by default. Trim black is a separate row/column trimming option and should usually remain off.
 - 只有确认保存后才更新 PNG、进度和人工标签；跳过不会保存新裁剪。支持上一张修改、暂停、关闭和续跑，恢复时保留该模式与未完成选点。 / Confirming updates the PNG, checkpoint, and reviewed label; Skip saves no new crop. Previous, Pause, Close, and Resume preserve this mode and unfinished corners.
 
-检测在缩小图上组合长边与暗色轮廓，并检查四边外侧背景和明暗对比，再映射回原图坐标。该模式不调用通用或反光森林，原有模型文件保持不变。严重模糊时仍需手动确认。
+检测在缩小图上组合长边与暗色轮廓，并检查四边外侧背景和明暗对比，再映射回原图坐标。选择 Square 时，候选排序优先考虑完整外框；若结果明显不像正方形且可能被内部线条截断，会有条件地尝试通用模型，并检查新候选是否包住原框。原有模型文件保持不变。严重模糊时仍需手动确认。
 
-Detection combines long edges/dark contours in a reduced image, checks the exterior and contrast on all four sides, and maps corners back to the original. It uses neither forest and leaves existing model files unchanged. Severe blur still requires manual correction.
+Detection combines long edges/dark contours in a reduced image, checks the exterior and contrast on all four sides, and maps corners back to the original. Square mode favors complete frames; when a proposal looks truncated it conditionally tries the general detector and checks that its candidate encloses the first proposal. Existing model files are unchanged. Severe blur still requires manual correction.
+
+## 图片状态和进度 / Image status and progress
+
+开始或继续批次后，右侧“图片状态 / Images”列出当前源文件夹的图片。下拉框可选择全部、未裁剪、已裁剪、待处理、已跳过或失败；双击某一行可跳转到该图进行查看或修改。固定坐标模式使用统一坐标，修改坐标需开始新批次。
+
+After Start or Resume, the right-hand Images panel lists the current source folder. Filter All, No crop, Cropped, Pending, Skipped, or Error; double-click a row to open it. Fixed-coordinate mode uses one shared selection and requires a new batch to change it.
+
+面板“已裁”按 `裁剪成功` 中实际存在的输出统计；“未裁”包含尚未处理、跳过或失败但没有成功输出的照片。“已处理”依据当前批次记录，包含跳过和失败，因此可能与已裁数量不同。草稿表示存在未确认的四角；“已裁·草稿”表示旧结果仍在、当前编辑尚未确认。“结果缺失”表示记录中有成功结果但输出文件不存在。
+
+Cropped counts files actually present in `裁剪成功`; No crop includes pending, skipped, and failed photos without a successful output. Processed counts terminal batch records, including skipped/errors, and can differ from Cropped. Draft marks unconfirmed corners; Saved·Draft means the previous crop exists while edits are unconfirmed. Missing indicates a successful record whose output file is absent.
+
+进度条表示已裁数量占图片总数的比例。启动或继续批次时扫描结果目录，处理每张后更新；如果在程序外移动、删除或新增裁剪结果，点击面板“刷新”重新扫描。照片、结果及进度文件不因查看列表被修改。
+
+The progress bar shows cropped outputs as a share of the image count. Results are scanned on Start/Resume and updated after each image; click Refresh after external file moves, deletions, or additions. Viewing the list does not modify photos, outputs, or checkpoints.
 
 ## 固定坐标批量导出 / Exporting with fixed coordinates
 

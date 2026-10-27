@@ -1,5 +1,12 @@
 # 更新记录 / Changelog
 
+## 0.8.0 — 2026-10-27
+
+- 加强黑边候选排序，降低内部表格线、色块及局部边框对完整外框的干扰；正方形模式对明显截断的结果有条件地参考现有通用模型。 / Rank complete black-border candidates against internal table lines and colored blocks; conditionally consult the general model for visibly truncated square proposals.
+- 限制边框内缩以保留图片边缘内容；保留人工确认、无可靠结果时手动选点和原有模型权重。 / Bound edge insets to preserve content; retain manual confirmation/fallback and existing weights.
+- 新增图片状态列表、未裁剪筛选、逐图跳转、实际输出计数及刷新；进度条表示已有结果的比例。 / Add image status, uncropped filtering, per-photo navigation, actual output counts, and refresh; the progress bar reflects saved results.
+- 新增表格干扰、候选回退及文件状态回归；补充双语使用说明。 / Add table-interference, fallback, and output-status regressions with bilingual usage notes.
+
 ## 0.7.0 — 2026-10-27
 
 - 新增“黑边识别 · 逐张确认”及 `--black-review` / `--black-border-review`，识别中间照片或文字图片的细黑框。 / Add Black-border review and CLI flags for thin dark frames around photographic/text pictures.

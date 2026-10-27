@@ -51,6 +51,38 @@ def framed_scene(*,text=False,blur=False,glare=False):
 
 
 class BlackBorderDetectionTests(unittest.TestCase):
+    def test_square_fallback_requires_a_bigger_enclosing_plausible_proposal(self):
+        image=np.zeros((600,800,3),np.uint8)
+        partial=np.float32([[200,150],[500,150],[500,360],[200,360]])
+        enclosing=np.float32([[200,105],[500,105],[500,405],[200,405]])
+        unrelated=np.float32([[30,30],[120,30],[120,120],[30,120]])
+        with patch('black_border.detect_black_frame',return_value=partial),patch.object(crop,'detect_screen',return_value=enclosing) as general:
+            np.testing.assert_allclose(crop.detect_black_border(image,square=True),enclosing)
+            general.assert_called_once()
+        with patch('black_border.detect_black_frame',return_value=partial),patch.object(crop,'detect_screen',return_value=unrelated):
+            np.testing.assert_allclose(crop.detect_black_border(image,square=True),partial)
+        with patch('black_border.detect_black_frame',return_value=partial),patch.object(crop,'detect_screen',side_effect=ValueError('unavailable')):
+            np.testing.assert_allclose(crop.detect_black_border(image,square=True),partial)
+        with patch('black_border.detect_black_frame',return_value=None),patch.object(crop,'detect_screen') as general:
+            self.assertIsNone(crop.detect_black_border(image,square=True))
+            general.assert_not_called()
+
+    def test_square_table_uses_outer_frame_instead_of_internal_cells(self):
+        image=np.full((700,1000,3),185,np.uint8)
+        picture=np.full((340,360,3),182,np.uint8)
+        cv2.rectangle(picture,(1,1),(358,338),(120,120,120),3)
+        for y in range(42,320,42):cv2.line(picture,(3,y),(356,y),(35,35,35),3)
+        cv2.line(picture,(270,3),(270,336),(35,35,35),3)
+        for y in range(30,330,42):cv2.putText(picture,'6:57 AM',(25,y),cv2.FONT_HERSHEY_SIMPLEX,.65,(30,30,30),2)
+        expected=np.float32([[330,165],[705,180],[690,540],[315,525]])
+        matrix=cv2.getPerspectiveTransform(np.float32([[0,0],[359,0],[359,339],[0,339]]),expected)
+        warped=cv2.warpPerspective(picture,matrix,(1000,700))
+        mask=cv2.warpPerspective(np.full((340,360),255,np.uint8),matrix,(1000,700))
+        image[mask>0]=warped[mask>0]
+        corners=crop.detect_black_border(image,square=True)
+        self.assertIsNotNone(corners)
+        self.assertGreater(overlap(corners,expected),.94)
+
     def test_dark_photo_keeps_whole_target_and_black_subject(self):
         image,expected=framed_scene()
         original=image.copy()
@@ -101,6 +133,7 @@ class BlackBorderDetectionTests(unittest.TestCase):
         image=np.full((600,1000,3),185,np.uint8)
         for x in (120,620):cv2.rectangle(image,(x,150),(x+260,410),(50,50,50),3)
         self.assertIsNone(crop.detect_black_border(image))
+        self.assertIsNone(crop.detect_black_border(image,square=True))
 
 
 class BlackReviewWorkflowTests(unittest.TestCase):
@@ -144,7 +177,7 @@ class BlackReviewWorkflowTests(unittest.TestCase):
         self.assertEqual(len(labels),1)
         label=next(iter(labels.values()))
         self.assertTrue(label['confirmed'])
-        self.assertEqual(label['model_version'],{'detector':'black-border-v1'})
+        self.assertEqual(label['model_version'],{'detector':'black-border-v2','fallback':'conditional-general'})
         for name,before in originals.items():self.assertEqual((self.source/name).read_bytes(),before)
 
     def test_pause_resume_restores_black_review_and_partial_points(self):

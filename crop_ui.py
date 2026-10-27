@@ -11,6 +11,7 @@ import sys
 import numpy as np
 from PIL import Image, ImageTk, ImageOps
 from batch_state import atomic_json, load_preferences, read_json, OutputDirectoryError
+from batch_status import existing_crops, image_state, matches_filter, progress_summary
 
 
 @dataclass(frozen=True)
@@ -192,6 +193,7 @@ class CropWorkspace:
         self.paused = False
         self.thumb_cache = OrderedDict()
         self.thumb_photos = []
+        self.saved_crop_names = set()
         self.preferences_path = Path(preferences_path) if preferences_path else Path(__file__).with_name('.crop-settings.json')
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="screen-detection")
         self.action = tk.StringVar(master=self.root, value="pending")
@@ -228,6 +230,10 @@ class CropWorkspace:
         style.configure("TRadiobutton", background="white", font=("Microsoft YaHei UI", 10), padding=5)
         style.configure("TCheckbutton", background="white", font=("Microsoft YaHei UI", 9), padding=3)
         style.configure("Horizontal.TProgressbar", background=self.ACCENT, troughcolor="#e0e5ef", borderwidth=0)
+        dpi=self.root.winfo_fpixels('1i')/96
+        style.configure('PictureList.Treeview',font=('Microsoft YaHei UI',10),
+                        rowheight=max(24,round(25*dpi)),background='white',fieldbackground='white')
+        style.configure('PictureList.Treeview.Heading',font=('Microsoft YaHei UI',9,'bold'))
 
     def _build(self):
         ttk, tk = self.ttk, self.tk
@@ -315,6 +321,7 @@ class CropWorkspace:
         panes = ttk.Frame(self.editor)
         panes.pack(fill="both", expand=True)
         panes.columnconfigure((0,1), weight=1, uniform="images")
+        panes.columnconfigure(2,weight=0,minsize=230)
         panes.rowconfigure(2, weight=1)
         ttk.Label(panes, text="01   原图 · 点击重选四角 / Original · Click to reselect").grid(row=0,column=0,sticky="w",pady=(0,8))
         ttk.Label(panes, text="02   裁剪预览 / Crop preview").grid(row=0,column=1,sticky="w",pady=(0,8),padx=(14,0))
@@ -331,6 +338,7 @@ class CropWorkspace:
         self.source_canvas.grid(row=2,column=0,sticky="nsew")
         self.preview_canvas.grid(row=1,column=1,rowspan=2,sticky="nsew",padx=(14,0))
         ttk.Label(panes,text="滚轮缩放 · 空格/中键拖移 / Wheel zoom · Space/middle drag",style="Hint.TLabel").grid(row=3,column=0,sticky="w",pady=(5,0))
+        self._picture_list_ui(panes)
         self.source_canvas.bind("<Configure>", lambda e: self.render_source())
         self.preview_canvas.bind("<Configure>", lambda e: self.render_preview())
         self.source_canvas.bind("<Button-1>", self._click)
@@ -376,6 +384,40 @@ class CropWorkspace:
         self.gallery.configure(xscrollcommand=gallery_scroll.set)
         self.gallery.bind('<Configure>',lambda e:self.render_gallery())
         self.gallery.bind('<Button-1>',self._gallery_click)
+
+    def _picture_list_ui(self, parent):
+        ttk,tk=self.ttk,self.tk
+        panel=ttk.Frame(parent,padding=(12,0,0,0))
+        panel.grid(row=0,column=2,rowspan=4,sticky='nsew')
+        panel.columnconfigure(0,weight=1)
+        panel.rowconfigure(4,weight=1)
+        ttk.Label(panel,text='03   图片状态 / Images',font=('Microsoft YaHei UI',10,'bold')).grid(row=0,column=0,columnspan=2,sticky='w',pady=(0,5))
+        self.picture_summary=tk.StringVar(value='开始批次后显示进度 / Progress appears after Start')
+        ttk.Label(panel,textvariable=self.picture_summary,style='Hint.TLabel',justify='left',wraplength=300).grid(row=1,column=0,columnspan=2,sticky='w',pady=(0,5))
+        controls=ttk.Frame(panel)
+        controls.grid(row=2,column=0,columnspan=2,sticky='ew',pady=(0,4))
+        controls.columnconfigure(0,weight=1)
+        self.picture_filter=tk.StringVar(value='全部 / All')
+        self.picture_filter_box=ttk.Combobox(controls,textvariable=self.picture_filter,state='readonly',
+            values=('全部 / All','未裁剪 / No crop','已裁剪 / Cropped','待处理 / Pending','已跳过 / Skipped','失败 / Error'))
+        self.picture_filter_box.grid(row=0,column=0,sticky='ew')
+        self.picture_filter_box.bind('<<ComboboxSelected>>',lambda event:self.rebuild_picture_list())
+        ttk.Button(controls,text='刷新',style='View.TButton',command=self.refresh_picture_list).grid(row=0,column=1,padx=(4,0))
+        ttk.Label(panel,text='双击图片跳转 / Double-click to open',style='Hint.TLabel').grid(row=3,column=0,columnspan=2,sticky='w',pady=(0,4))
+        self.picture_list=ttk.Treeview(panel,columns=('status','filename'),show='headings',selectmode='browse',height=8,style='PictureList.Treeview')
+        self.picture_list.heading('status',text='状态')
+        self.picture_list.heading('filename',text='文件 / File')
+        self.picture_list.column('status',width=130,minwidth=100,stretch=False)
+        self.picture_list.column('filename',width=135,minwidth=90,stretch=True)
+        self.picture_list.grid(row=4,column=0,sticky='nsew')
+        scrollbar=ttk.Scrollbar(panel,orient='vertical',command=self.picture_list.yview)
+        scrollbar.grid(row=4,column=1,sticky='ns')
+        self.picture_list.configure(yscrollcommand=scrollbar.set)
+        for state,color in (('saved','#178562'),('saved_draft','#4f46e5'),('draft','#4f46e5'),
+                            ('error','#bd4141'),('saved_error','#bd4141'),('skipped','#ab7c24'),
+                            ('saved_skipped','#ab7c24'),('missing','#bd4141'),('pending','#69758a')):
+            self.picture_list.tag_configure(state,foreground=color)
+        self.picture_list.bind('<Double-1>',self._picture_list_click)
 
     def browse(self, variable):
         from tkinter import filedialog
@@ -476,7 +518,7 @@ class CropWorkspace:
         self.trim.set(not args.no_trim_black)
         self.remember_settings()
         self.thumb_cache.clear()
-        self.render_gallery()
+        self.refresh_picture_list()
 
     def prepare_item(self,index):
         self.current_index=index
@@ -490,6 +532,7 @@ class CropWorkspace:
         self.source_pil=self.preview_pil=None
         self.counter.set(f'{index+1} / {len(self.session.files)}')
         self.filename.set(self.session.names[index])
+        self.select_picture_list(index)
         self.preview_detail.set('等待当前图片四角 / Waiting for current corners')
         self.render_source();self.render_preview()
         self.previous_button.configure(state='normal' if index>0 else 'disabled')
@@ -516,6 +559,8 @@ class CropWorkspace:
         if getattr(self,'session',None) is not None and self.selection is not None:
             self.session.draft(self.selection.points,modified=self.selection.manual_modified,
                                automatic=self.automatic_quad,source_sha256=self.source_digest)
+            if hasattr(self,'picture_list'):
+                self.update_picture_row(self.current_index)
 
     def resume_last(self):
         if self.busy:return
@@ -580,6 +625,74 @@ class CropWorkspace:
 
     def _gallery_click(self,event):
         self.jump_to(int(self.gallery.canvasx(event.x)//112))
+
+    def picture_filter_key(self):
+        return {'未裁剪 / No crop':'uncropped','已裁剪 / Cropped':'cropped',
+                '待处理 / Pending':'pending','已跳过 / Skipped':'skipped',
+                '失败 / Error':'error'}.get(self.picture_filter.get(),'all')
+
+    def picture_values(self,index):
+        state=image_state(self.session,index,self.saved_crop_names)
+        labels={'saved':'已裁 Done','saved_draft':'已裁·草稿','draft':'草稿 Draft',
+                'error':'失败 Error','saved_error':'失败·旧图','skipped':'跳过 Skip',
+                'saved_skipped':'跳过·旧图','missing':'结果缺失','pending':'未裁 Wait'}
+        return state,(labels[state],f'{index+1} · {self.session.names[index]}')
+
+    def update_picture_summary(self):
+        if self.session is None:return
+        summary=progress_summary(self.session,self.saved_crop_names)
+        total=summary['total']
+        self.picture_summary.set(
+            f"已裁 Cropped {summary['cropped']}/{total}\n"
+            f"未裁 No crop {summary['uncropped']}\n"
+            f"草稿 {summary['drafts']} · 跳过 {summary['skipped']} · 失败 {summary['errors']}\n"
+            f"处理 Processed {summary['processed']}/{total}")
+        self.progress.configure(value=summary['cropped']/max(1,total)*100)
+
+    def rebuild_picture_list(self):
+        if self.closed or self.session is None:return
+        tree=self.picture_list
+        tree.delete(*tree.get_children())
+        choice=self.picture_filter_key()
+        for index in range(len(self.session.names)):
+            if matches_filter(self.session,index,self.saved_crop_names,choice):
+                state,values=self.picture_values(index)
+                tree.insert('','end',iid=str(index),values=values,tags=(state,))
+        self.update_picture_summary()
+        self.select_picture_list(self.current_index)
+
+    def refresh_picture_list(self):
+        if self.session is None:return
+        self.saved_crop_names=existing_crops(self.session.destination,self.session.names)
+        self.rebuild_picture_list()
+        self.render_gallery()
+
+    def select_picture_list(self,index):
+        if self.session is None:return
+        iid=str(index)
+        if self.picture_list.exists(iid):
+            self.picture_list.selection_set(iid)
+            self.picture_list.see(iid)
+        else:
+            self.picture_list.selection_remove(self.picture_list.selection())
+
+    def update_picture_row(self,index):
+        if self.closed or self.session is None:return
+        tree=self.picture_list;iid=str(index)
+        matches=matches_filter(self.session,index,self.saved_crop_names,self.picture_filter_key())
+        if matches:
+            state,values=self.picture_values(index)
+            if tree.exists(iid):tree.item(iid,values=values,tags=(state,))
+            else:
+                previous=sum(int(item)<index for item in tree.get_children())
+                tree.insert('',previous,iid=iid,values=values,tags=(state,))
+        elif tree.exists(iid):tree.delete(iid)
+        self.update_picture_summary()
+        self.select_picture_list(self.current_index)
+
+    def _picture_list_click(self,event):
+        iid=self.picture_list.identify_row(event.y)
+        if iid:self.jump_to(int(iid))
 
     def render_gallery(self):
         if self.closed or self.session is None:return
@@ -874,7 +987,9 @@ class CropWorkspace:
         return "break"
 
     def _shortcut(self, event, callback):
-        if self.busy and event.widget.winfo_class() not in {"TEntry","Entry","Text"}:
+        # Enter and editing shortcuts must not save/reset a crop while the user
+        # is interacting with the filter or navigating the image list.
+        if self.busy and event.widget.winfo_class() not in {"TEntry","Entry","Text","TCombobox","Treeview","Listbox"}:
             callback()
             return "break"
 
@@ -942,8 +1057,12 @@ class CropWorkspace:
             return
         self.stats={key:sum(row.get('status')==key for row in self.session.records.values()) for key in self.stats}
         self.stats['ok']=sum(row.get('saved',row.get('status')=='ok') for row in self.session.records.values())
-        done=sum(not self.session.pending(i) for i in range(len(self.session.files)))
-        self.progress.configure(value=done/max(1,len(self.session.files))*100)
+        name=self.session.names[self.current_index]
+        if self.session.records.get(name,{}).get('saved'):
+            self.saved_crop_names.add(name)
+        else:
+            self.saved_crop_names.discard(name)
+        self.update_picture_row(self.current_index)
         self.render_gallery()
         if status=="ok":
             self.preview_detail.set(f"{detail} px · 已保存 / Saved")

@@ -14,7 +14,7 @@ class ReleaseTests(unittest.TestCase):
     def test_release_files_exclude_local_inputs_and_include_runtime_assets(self):
         files = release_files(ROOT)
         names = {p.relative_to(ROOT).as_posix() for p in files}
-        for required in ("screen_crop.py", "white_border.py", "black_border.py", "crop_ui.py", "batch_state.py", "train_screen_model.py", "screen_crop_model.json",
+        for required in ("screen_crop.py", "white_border.py", "black_border.py", "crop_ui.py", "batch_state.py", "batch_status.py", "train_screen_model.py", "screen_crop_model.json",
                          "screen_crop_forest.xml.gz", "screen_crop_reflection.xml.gz", "requirements.txt", "启动裁剪.cmd", "LICENSE"):
             self.assertIn(required, names)
         excluded = {"原图", "结果", "结果2", "识别提升结果", ".crop-env", ".venv", "dist", "github-release"}

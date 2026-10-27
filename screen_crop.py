@@ -27,7 +27,7 @@ except ImportError as exc:
     ) from exc
 
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 SUCCESS_FOLDER = "裁剪成功"
@@ -502,7 +502,33 @@ def review_and_crop(image: np.ndarray, proposed: np.ndarray | None,
 
 def detect_black_border(image: np.ndarray, *, square: bool = False) -> np.ndarray | None:
     from black_border import detect_black_frame
-    return detect_black_frame(image,order_corners,square=square)
+    proposed=detect_black_frame(image,order_corners,square=square)
+    if proposed is None or not square:
+        return proposed
+    def aspect_error(quad):
+        sides=np.linalg.norm(np.roll(quad,-1,axis=0)-quad,axis=1)
+        return abs(float(np.log((sides[0]+sides[2])/(sides[1]+sides[3]))))
+    initial_error=aspect_error(proposed)
+    if initial_error<.18:
+        return proposed
+    # A weak side can cause a table row to truncate an originally square image.
+    # Consult the general detector only in this uncertain case. Never replace a
+    # frame with a disjoint proposal or one that does not enclose its content.
+    try:
+        alternate=detect_screen(image,square=True)
+        if alternate is None:return proposed
+        alternate=order_corners(alternate)
+        proposed_area=abs(cv2.contourArea(proposed))
+        alternate_area=abs(cv2.contourArea(alternate))
+        intersection,_=cv2.intersectConvexConvex(proposed,alternate)
+        center_shift=np.linalg.norm(proposed.mean(axis=0)-alternate.mean(axis=0))/np.sqrt(proposed_area)
+        if (intersection/proposed_area>=.9 and 1.1<=alternate_area/proposed_area<=1.8
+                and alternate_area<image.shape[0]*image.shape[1]*.6 and center_shift<.2
+                and aspect_error(alternate)<initial_error-.08):
+            return alternate
+    except (ValueError,OSError,AttributeError,ImportError,cv2.error):
+        pass
+    return proposed
 
 
 def fixed_corners(template: dict, image_size: tuple[int, int]) -> np.ndarray:
@@ -642,7 +668,7 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
     model_version = dict(base=model.get('version'), reflection=model.get('reflection',{}).get('version'),
                          reflection_sha256=model.get('reflection',{}).get('weight_sha256'))
     if args.black_review:
-        model_version = dict(detector='black-border-v1')
+        model_version = dict(detector='black-border-v2',fallback='conditional-general')
     while True:
         if session.index >= len(files):
             session.index = session.first_pending()
