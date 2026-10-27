@@ -4,7 +4,7 @@
 
 Extract complete pictures from photographed screens with automatic corner detection, perspective correction, and dark-content preservation. Includes a pretrained model, a single-page preview, Enter-to-save review, manual re-cropping, and square mode.
 
-**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.6.0**
+**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.7.0**
 
 [使用指南 / Usage](docs/USAGE.md) · [模型与评估 / Model & evaluation](docs/MODEL_CARD.md) · [继续训练 / Training](docs/TRAINING.md) · [发布指南 / Publishing](docs/PUBLISHING.md)
 
@@ -18,6 +18,7 @@ Extract complete pictures from photographed screens with automatic corner detect
 | 浅色背景先检测完整图片边界，支持白色边缘和有可辨边界的文字图片；普通场景继续使用森林评分。 | A light-background path finds whole-picture boundaries, including white edges and bounded text images; other scenes retain forest scoring. |
 | 默认保留黑衣服、黑背景；需要时显式开启黑边清除。 | Preserves dark clothing and backgrounds by default; black-margin trimming is opt-in. |
 | 自动批处理、逐张审核、手动选四角、失败补裁。 | Automatic batches, review, manual corners, and failure retries. |
+| 黑边识别确认：定位中间目标图片的细黑框，预览、放大或调整四角后，按 Enter 逐张确认保存。 | Black-border review: locate the target picture's thin dark frame, preview/zoom/adjust corners, then press Enter to confirm each crop. |
 | 固定坐标：首张确认四角，后续按同一组原图坐标批量导出，无需重复识别或逐张审核；支持暂停续跑。 | Fixed coordinates: confirm corners once, then export remaining photos at the same source-pixel coordinates without detection or review; pause/resume supported. |
 | 原图、四角调整与裁剪结果在同一页面；四角有效后自动预览，按一次 Enter 保存并下一张。 | Original, corner editing, and crop preview share one page; valid corners preview immediately, and one Enter saves and advances. |
 | 预览就绪后直接点击左侧原图重选四角，点击位置作为第一个点；按住角点拖动仍可微调。 | Click the left original to reselect four corners, using that click as the first point; dragging a handle still adjusts it. |
@@ -115,9 +116,26 @@ Choose source/output folders, workflow, and picture shape on the startup page. S
 |---|---|---|---|
 | 首次处理，逐张检查 / Inspect a new collection | 自动识别 · 逐张确认 / Review | `--review` | 自动选四角，同页检查，Enter 保存下一张。 / Automatic corners; inspect and press Enter to save and advance. |
 | 自己决定每张图片边界 / Select every boundary yourself | 手动四角 · 逐张确认 / Manual | `--manual` | 不进行自动识别，手动选四角后预览并保存。 / No automatic detection; choose four corners, preview, and save. |
+| 中间图片周围有细黑框 / A thin dark frame around the target | 黑边识别 · 逐张确认 / Black-border review | `--black-review` | 定位四边后预览，手动确认每一张；无可信边界时手动选点。 / Propose four borders and confirm every crop; select points manually if no reliable frame is found. |
 | 相机和目标位置固定 / Fixed camera and target position | 固定坐标 · 首张确认后批量导出 / Fixed coordinates | `--fixed` | 仅首张确认，后续相同尺寸照片直接复用四角。 / Confirm once; reuse corners for same-size source photos. |
 | 继续处理失败或跳过的照片 / Handle failed/skipped photos | 失败图片补裁 / Retry failures | `RESULT_ROOT --retry-failed` | 使用上次结果总目录，递归手动处理其中的失败副本。 / Use the previous result root and manually process its failure copies recursively. |
 | 已确认场景，直接自动批处理 / Run an automatic batch | 使用命令行 / Use CLI | 不加模式参数 / Omit workflow flags | 不显示逐张窗口，识别成功后直接保存。 / No per-photo window; detected crops are saved immediately. |
+
+### 黑边识别后逐张确认 / Review thin black borders before saving
+
+当目标照片或文字图片周围有细黑框时，在设置页选择 **“黑边识别 · 逐张确认”**。程序定位中间图片的四条边，左侧显示四角，右侧显示裁剪预览。检查是否保留完整人物或文字，可滚轮放大、拖动角点，或直接点击原图重选四角。确认正确后按 **Enter** 或“确认保存并下一张”；每一张都需要确认，生成预览不会自动保存。
+
+Select **Black-border review** when a photo or text picture has a thin dark outline. The application proposes the central picture's four borders and shows the crop preview. Check that the whole subject/text is retained; zoom, drag handles, or click the original to reselect corners. Press **Enter** or Confirm & next to save. Every image requires confirmation; previewing alone never saves a crop.
+
+```powershell
+python screen_crop.py "D:\拍屏照片" "D:\裁剪结果" --black-review
+python screen_crop.py "D:\拍屏照片" "D:\裁剪结果" --black-review --square
+python screen_crop.py "D:\拍屏照片" "D:\裁剪结果" --black-review --square --resume
+```
+
+别名为 `--black-border-review`。适合浅色屏幕背景上的细黑框，照片和文字图片均可；不以最外侧整块显示屏为目标。默认保留照片内部的暗色内容，无需开启“清除黑边”。未检测到可信四边时，可手动选择四点后确认。支持暂停恢复、上一张修改、失败补裁和人工确认标签。此模式使用独立的边框检测，不重新训练或更改随附森林权重。
+
+`--black-border-review` is an alias. This mode suits thin dark outlines on a lighter screen background, including photographic and text content; it targets the inner picture. Dark content inside the picture is retained by default, so Trim black is unnecessary. Select four points manually if detection is uncertain. Pause/Resume, Previous, failure retries, and reviewed labels remain available. This uses a separate border detector without retraining or changing the bundled forest weights.
 
 ### 固定坐标：确认一次，批量导出 / Fixed coordinates: confirm once, export a batch
 

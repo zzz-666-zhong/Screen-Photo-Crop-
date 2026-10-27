@@ -27,7 +27,7 @@ except ImportError as exc:
     ) from exc
 
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 SUCCESS_FOLDER = "裁剪成功"
@@ -500,6 +500,11 @@ def review_and_crop(image: np.ndarray, proposed: np.ndarray | None,
                             auto_detect=not (args.manual or args.retry_failed), filename=filename)
 
 
+def detect_black_border(image: np.ndarray, *, square: bool = False) -> np.ndarray | None:
+    from black_border import detect_black_frame
+    return detect_black_frame(image,order_corners,square=square)
+
+
 def fixed_corners(template: dict, image_size: tuple[int, int]) -> np.ndarray:
     """Reuse confirmed source pixels only when the oriented image size matches."""
     try:
@@ -529,6 +534,8 @@ def parser() -> argparse.ArgumentParser:
     mode = result.add_mutually_exclusive_group()
     mode.add_argument("--manual", action="store_true", help="Pick four corners on every photo")
     mode.add_argument("--review", action="store_true", help="Review automatic corners before saving")
+    mode.add_argument("--black-review", "--black-border-review", action="store_true",
+                      help="Detect the target picture's thin dark frame and manually confirm every crop")
     mode.add_argument("--fixed", "--fixed-coordinates", action="store_true",
                       help="Confirm corners once, then export the remaining photos at the same source-pixel coordinates")
     mode.add_argument("--retry-failed", action="store_true", help="Manually crop pending failures from the result root")
@@ -556,7 +563,7 @@ def create_workspace():
 
 
 def run(args: argparse.Namespace, *, workspace=None) -> int:
-    owned = workspace is None and (args.manual or args.review or args.retry_failed or args.fixed)
+    owned = workspace is None and (args.manual or args.review or args.retry_failed or args.fixed or args.black_review)
     if owned:
         workspace = create_workspace()
     try:
@@ -608,7 +615,7 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
             return 0
         raise ValueError("No supported images were found in the input folder.")
     # An incompatible installation is a batch-level error, not a bad photo.
-    if not args.manual and not args.retry_failed:
+    if not args.manual and not args.retry_failed and not args.black_review:
         check_model_runtime()
     from batch_state import BatchSession, LabelStore, fingerprint, label_source, prepare_output_directories
     output_directories = [destination, success_dir, failure_dir]
@@ -617,7 +624,7 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
     prepare_output_directories(output_directories)
     labels = LabelStore(destination)
     session = BatchSession(destination, source, files, args, __version__)
-    interactive = args.manual or args.review or args.retry_failed or args.fixed
+    interactive = args.manual or args.review or args.retry_failed or args.fixed or args.black_review
     fixed_template = session.data.get('fixed_coordinates') if args.fixed else None
     if fixed_template is not None:
         fixed_corners(fixed_template, fixed_template.get('image_size', ()) if isinstance(fixed_template,dict) else ())
@@ -634,6 +641,8 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
     if not isinstance(model,dict):model={}
     model_version = dict(base=model.get('version'), reflection=model.get('reflection',{}).get('version'),
                          reflection_sha256=model.get('reflection',{}).get('weight_sha256'))
+    if args.black_review:
+        model_version = dict(detector='black-border-v1')
     while True:
         if session.index >= len(files):
             session.index = session.first_pending()

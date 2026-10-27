@@ -256,7 +256,7 @@ class CropWorkspace:
         saved = load_preferences(self.preferences_path)
         self.source = tk.StringVar(value=saved.get('source',''))
         self.output = tk.StringVar(value=saved.get('output',''))
-        self.workflow = tk.StringVar(value=saved.get('workflow','review') if saved.get('workflow') in ('review','manual','retry','fixed') else 'review')
+        self.workflow = tk.StringVar(value=saved.get('workflow','review') if saved.get('workflow') in ('review','manual','retry','fixed','black_review') else 'review')
         self.shape = tk.StringVar(value=saved.get('shape','full') if saved.get('shape') in ('full','square') else 'full')
         self.recursive = tk.BooleanVar(value=saved.get('recursive') is True)
         self.overwrite = tk.BooleanVar(value=saved.get('overwrite') is True)
@@ -279,6 +279,7 @@ class CropWorkspace:
         modes.grid(row=0, column=0, sticky="nw")
         ttk.Label(modes, text="01   处理方式 / Workflow", style="Card.TLabel", font=("Microsoft YaHei UI",11,"bold")).pack(anchor="w", pady=(0,5))
         for value, label in (("review","自动识别 · 逐张确认 / Review"),("manual","手动四角 · 逐张确认 / Manual"),
+                             ("black_review","黑边识别 · 逐张确认 / Black-border review"),
                              ("fixed","固定坐标 · 首张确认后批量导出 / Fixed coordinates"),("retry","失败图片补裁 / Retry failures")):
             ttk.Radiobutton(modes, text=label, value=value, variable=self.workflow).pack(anchor="w")
         shapes = ttk.Frame(options, style="Card.TFrame")
@@ -293,7 +294,10 @@ class CropWorkspace:
         for i,(label, variable) in enumerate((("包含子目录 / Recursive",self.recursive),("覆盖旧结果 / Overwrite",self.overwrite),
                                 ("保存识别框 / Debug",self.debug),("清除黑边 / Trim black",self.trim))):
             ttk.Checkbutton(flags, text=label, variable=variable).grid(row=i//2,column=i%2,sticky="w",padx=(0,20))
-        ttk.Label(panel, text="固定坐标：首张 Enter 确认后自动导出；原图尺寸和目标位置须一致。 / Fixed: confirm once; same size and target position required.",
+        self.workflow_hint=tk.StringVar()
+        self.workflow.trace_add('write',lambda *_:self.update_workflow_hint())
+        self.update_workflow_hint()
+        ttk.Label(panel, textvariable=self.workflow_hint,
                   style="Card.TLabel", foreground=self.MUTED, wraplength=900).grid(row=5, column=0, columnspan=3, sticky="w", pady=8)
         buttons = ttk.Frame(panel,style='Card.TFrame')
         buttons.grid(row=6,column=0,columnspan=3,sticky='w')
@@ -379,6 +383,13 @@ class CropWorkspace:
         if path:
             variable.set(path)
 
+    def update_workflow_hint(self):
+        messages={
+            'fixed':'固定坐标：首张 Enter 确认后自动导出；原图尺寸和目标位置须一致。 / Fixed: confirm once; same size and target position required.',
+            'black_review':'识别中间图片的细黑框；检查、调整四角，按 Enter 确认后才保存。 / Detect the picture frame; adjust corners, then Enter to confirm each crop.'}
+        self.workflow_hint.set(messages.get(self.workflow.get(),
+            '原图与预览同页 · Enter 保存并下一张 / One page · Enter saves and advances'))
+
     def show_settings(self):
         if self.busy or self.closed:
             return
@@ -399,7 +410,7 @@ class CropWorkspace:
             if not source or not output:
                 self.status.set("请选择原照片和结果目录 / Choose both folders")
                 return
-            argv = [source, output, {'manual':'--manual','fixed':'--fixed'}.get(self.workflow.get(),'--review')]
+            argv = [source, output, {'manual':'--manual','fixed':'--fixed','black_review':'--black-review'}.get(self.workflow.get(),'--review')]
         for enabled, option in ((self.shape.get()=="square","--square"),(self.recursive.get(),"--recursive"),
                                 (self.overwrite.get(),"--overwrite"),(self.debug.get(),"--debug"),(self.trim.get(),"--trim-black")):
             if enabled:
@@ -457,10 +468,10 @@ class CropWorkspace:
         session.persist('running')
         self.source.set(str(session.source))
         self.output.set(str(session.destination))
-        self.workflow.set('retry' if args.retry_failed else 'fixed' if args.fixed else 'manual' if args.manual else 'review')
+        self.workflow.set('retry' if args.retry_failed else 'fixed' if args.fixed else 'black_review' if args.black_review else 'manual' if args.manual else 'review')
         self.shape.set('square' if args.square else 'full')
         shape = '正方形 1:1 / Square' if args.square else '完整图片 / Full picture'
-        self.mode_badge.set(('固定坐标 / Fixed · ' if args.fixed else '') + shape)
+        self.mode_badge.set(('固定坐标 / Fixed · ' if args.fixed else '黑边确认 / Black review · ' if args.black_review else '') + shape)
         for key in ('recursive','overwrite','debug'):getattr(self,key).set(getattr(args,key))
         self.trim.set(not args.no_trim_black)
         self.remember_settings()
@@ -516,7 +527,7 @@ class CropWorkspace:
             return
         options=data['options']
         argv=[data['destination']] if options['retry_failed'] else [data['source'],data['destination']]
-        for key in ('manual','review','retry_failed','fixed','recursive','square','overwrite','debug'):
+        for key in ('manual','review','retry_failed','fixed','black_review','recursive','square','overwrite','debug'):
             if options.get(key,False):argv.append('--'+key.replace('_','-'))
         if not options['no_trim_black']:argv.append('--trim-black')
         for key in ('black_threshold','max_trim','inset'):argv.extend(['--'+key.replace('_','-'),str(options[key])])
@@ -616,8 +627,9 @@ class CropWorkspace:
         self.filename.set(filename or "当前图片 / Current image")
         self.counter.set(title.replace("/", " / "))
         shape = "正方形 1:1 / Square" if args.square else "完整图片 / Full picture"
-        self.mode_badge.set(('固定坐标 / Fixed · ' if args.fixed else '') + shape)
-        self.save_button.configure(text='确认并批量导出 / Confirm & export ↵' if args.fixed else '保存并下一张 / Save & next ↵')
+        self.mode_badge.set(('固定坐标 / Fixed · ' if args.fixed else '黑边确认 / Black review · ' if args.black_review else '') + shape)
+        self.save_button.configure(text='确认并批量导出 / Confirm & export ↵' if args.fixed else
+                                   '确认保存并下一张 / Confirm & next ↵' if args.black_review else '保存并下一张 / Save & next ↵')
         self.selection = CropSelection(image, args, self.backend)
         self.drag_index = None
         self.reselect_point = None
@@ -633,7 +645,8 @@ class CropWorkspace:
         self.stop_button.configure(state="normal")
         self.pause_button.configure(state='normal')
         self.previous_button.configure(state='normal' if self.current_index>0 and not args.fixed else 'disabled')
-        self.status.set("正在识别边界，可跳过或结束 / Detecting boundaries…")
+        self.status.set('正在识别目标图片细黑框，请等待预览后确认 / Detecting the thin picture frame…' if args.black_review else
+                        "正在识别边界，可跳过或结束 / Detecting boundaries…")
         self.root.update_idletasks()
         self.render_source()
         self.render_preview()
@@ -649,7 +662,7 @@ class CropWorkspace:
             self.selection.manual_modified=self.restored_modified
             self._selection_changed()
         elif auto_detect:
-            self.future = self.executor.submit(self.backend.detect_screen, image, square=args.square)
+            self.future = self.executor.submit(self.detect_review_corners, image, args)
             self._poll_detection()
         else:
             self._selection_changed()
@@ -667,6 +680,10 @@ class CropWorkspace:
         if self.action.get() == "save":
             return self.selection.accept()
         return None
+
+    def detect_review_corners(self,image,args):
+        detector=self.backend.detect_black_border if args.black_review else self.backend.detect_screen
+        return detector(image,square=args.square)
 
     def _poll_detection(self):
         self.poll_id = None
@@ -687,6 +704,8 @@ class CropWorkspace:
         self._selection_changed()
         if error:
             self.status.set(f"识别不可用，请手动选四角 / Select corners manually · {error}")
+        elif self.selection.args.black_review and not self.selection.points:
+            self.status.set('未找到可信细黑框，请放大后手动选四角 / No reliable frame; zoom in and select four corners manually')
 
     def _disable_actions(self):
         for button in (self.save_button,self.reset_button,self.undo_button,self.skip_button,self.stop_button,
@@ -703,6 +722,8 @@ class CropWorkspace:
         self.preview_detail.set(f"{preview.shape[1]} × {preview.shape[0]} px · 尚未保存 / Not saved" if ready else "等待有效四角 / Waiting for valid corners")
         ready_message = ("四角确认后按 Enter：后续按相同坐标自动导出，无需逐张审核 / Enter: confirm corners and export the rest without review"
                          if self.selection.args.fixed else
+                         '检查黑框四角与预览 · 点击重选、拖动微调 · Enter 确认保存下一张 / Inspect frame and preview · Click/drag to adjust · Enter confirms'
+                         if self.selection.args.black_review else
                          "预览已就绪 · 点击原图重选；拖动角点微调；Enter 保存并下一张 / Click original: reselect · Drag: adjust · Enter: save & next")
         self.status.set(self.selection.error or (ready_message if ready else f"请按顺序选四角 · 已选 {len(self.selection.points)}/4；可拖动角点 / Select 4 corners; drag to adjust"))
         self.render_source()

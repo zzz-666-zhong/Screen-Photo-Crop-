@@ -117,6 +117,7 @@ class FixedBatchTests(unittest.TestCase):
         checkpoint = self.output/'crop_session.json'
         data = json.loads(checkpoint.read_text(encoding='utf-8'))
         del data['options']['fixed']
+        del data['options']['black_review']
         checkpoint.write_text(json.dumps(data),encoding='utf-8')
         args.resume = True
         self.workspace.review.side_effect = AssertionError('Completed records must be retained')

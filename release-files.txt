@@ -14,6 +14,7 @@ requirements.txt
 launch_crop.py
 screen_crop.py
 white_border.py
+black_border.py
 crop_ui.py
 batch_state.py
 train_screen_model.py
@@ -49,4 +50,5 @@ tests/test_batch_state.py
 tests/test_fixed.py
 tests/test_training.py
 tests/test_white_border.py
+tests/test_black_border.py
 release-files.txt

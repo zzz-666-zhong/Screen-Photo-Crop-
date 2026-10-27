@@ -1,5 +1,13 @@
 # 更新记录 / Changelog
 
+## 0.7.0 — 2026-10-27
+
+- 新增“黑边识别 · 逐张确认”及 `--black-review` / `--black-border-review`，识别中间照片或文字图片的细黑框。 / Add Black-border review and CLI flags for thin dark frames around photographic/text pictures.
+- 组合线段与暗色连通轮廓，检查四边背景和对比，排除外侧显示屏与内部文字干扰；检测证据缩放后映射回原图。 / Combine line segments/dark contours with four-side contrast/background checks and map reduced-image proposals to original pixels.
+- 预览、缩放、重选和拖动后按 Enter 才保存；无可信边框时手动选点，支持上一张与暂停恢复。 / Require Enter after preview/zoom/reselection/adjustment, with manual fallback, Previous, and Pause/Resume.
+- 默认保留内部暗色内容；森林权重不变，旧批次记录兼容恢复。 / Retain dark content by default, preserve forest weights, and support earlier checkpoints.
+- 新增合成检测与确认保存回归，补充中英文操作说明。 / Add synthetic detection/confirmation regressions and bilingual usage instructions.
+
 ## 0.6.0 — 2026-10-26
 
 - 新增固定坐标模式：首张确认四角，后续按原图像素坐标批量导出，跳过重复识别与逐张审核。 / Add fixed-coordinate mode: confirm corners once, then export remaining photos at the same source-pixel coordinates without repeated detection or review.

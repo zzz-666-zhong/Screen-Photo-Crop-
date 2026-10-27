@@ -41,9 +41,30 @@ Double-click **`启动裁剪.cmd`**, or run the command below. Direct execution 
 .\.crop-env\Scripts\python.exe screen_crop.py
 ```
 
-无参数启动进入设置页：填写原图和结果目录，选择自动审核、手动四角、固定坐标或失败补裁，并选择完整图片或正方形 1:1。失败补裁使用上次结果总目录。批次完成后留在同一页面，点击返回设置可开始下一批。
+无参数启动进入设置页：填写原图和结果目录，选择自动审核、黑边识别确认、手动四角、固定坐标或失败补裁，并选择完整图片或正方形 1:1。失败补裁使用上次结果总目录。批次完成后留在同一页面，点击返回设置可开始下一批。
 
-With no arguments, the startup page lets you choose folders, Review/Manual/Fixed/Retry, and Full picture/Square 1:1. Retry uses the previous result root. Completion stays on the same page; Settings starts another batch.
+With no arguments, the startup page lets you choose folders, Review/Black-border review/Manual/Fixed/Retry, and Full picture/Square 1:1. Retry uses the previous result root. Completion stays on the same page; Settings starts another batch.
+
+## 黑边识别 · 手动确认 / Black-border detection with manual confirmation
+
+适用于浅色屏幕背景中带细黑框的照片或文字图片，检测目标为中间图片的四边。先选择“黑边识别 · 逐张确认”，然后开始裁剪。左侧显示自动四角，右侧显示结果；只有检查、调整并按 Enter 后才保存并进入下一张。每张都重新识别和等待确认。
+
+Use this for a photo/text picture with a thin dark outline on a lighter screen background. Select Black-border review and Start. The left shows proposed corners and the right shows the result. Inspect/adjust the proposal, then press Enter to save and advance. Each image is detected separately and waits for confirmation.
+
+```powershell
+.\.crop-env\Scripts\python.exe screen_crop.py "原图" "结果示例" --black-review
+.\.crop-env\Scripts\python.exe screen_crop.py "原图" "结果示例" --black-review --square
+.\.crop-env\Scripts\python.exe screen_crop.py "原图" "结果示例" --black-review --square --resume
+```
+
+- 滚轮或 `+` / `−` 放大、缩小；空格加拖动或中键拖移；拖动四角可微调。点击原图可直接重选四个点。 / Wheel or `+` / `−` zooms; Space/middle drag pans. Drag handles to adjust, or click the original to reselect four corners.
+- 四边太弱、缺边、反光严重或存在多个相近目标时，可能不返回自动框；界面会提示手动选四角，选四点后仍可预览、确认保存。 / Weak/missing borders, strong glare, or multiple similar targets may produce no proposal. The workspace prompts for four manual points, followed by preview/confirmation.
+- 默认保留目标内部黑衣服、阴影等暗色内容。“清除黑边”仍是额外的像素行列裁边选项，通常保持关闭。 / Dark clothing/shadows are retained by default. Trim black is a separate row/column trimming option and should usually remain off.
+- 只有确认保存后才更新 PNG、进度和人工标签；跳过不会保存新裁剪。支持上一张修改、暂停、关闭和续跑，恢复时保留该模式与未完成选点。 / Confirming updates the PNG, checkpoint, and reviewed label; Skip saves no new crop. Previous, Pause, Close, and Resume preserve this mode and unfinished corners.
+
+检测在缩小图上组合长边与暗色轮廓，并检查四边外侧背景和明暗对比，再映射回原图坐标。该模式不调用通用或反光森林，原有模型文件保持不变。严重模糊时仍需手动确认。
+
+Detection combines long edges/dark contours in a reduced image, checks the exterior and contrast on all four sides, and maps corners back to the original. It uses neither forest and leaves existing model files unchanged. Severe blur still requires manual correction.
 
 ## 固定坐标批量导出 / Exporting with fixed coordinates
 
@@ -247,6 +268,7 @@ When enabled, trimming removes consecutive outer rows/columns with at least 90% 
 |---|---|---|
 | `--manual` | 关闭 / Off | 全部手动选四角。 / Manually select corners for every image. |
 | `--review` | 关闭 / Off | 逐张确认或修改自动框。 / Review or replace automatic corners. |
+| `--black-review` | 关闭 / Off | 识别中间图片的细黑框后逐张确认；别名 `--black-border-review`。 / Detect a thin dark picture frame and confirm each crop; alias `--black-border-review`. |
 | `--fixed` | 关闭 / Off | 首张确认四角，后续相同尺寸照片按固定坐标导出；别名 `--fixed-coordinates`。 / Confirm once and reuse coordinates for matching-size sources; alias `--fixed-coordinates`. |
 | `--retry-failed` | 关闭 / Off | 递归手动处理结果目录下的失败副本。 / Recursively retry failure copies manually. |
 | `--square` | 关闭 / Off | 将原本正方形的目标完整透视校正为 1:1；裁边后仍保持 1:1。 / Rectify the full originally square target to 1:1, retained after optional trimming. |
@@ -261,9 +283,9 @@ When enabled, trimming removes consecutive outer rows/columns with at least 90% 
 | `--export-labels` | 未设置 / Unset | 批次结束后导出人工确认标签到 JSON。 / Export reviewed labels after processing. |
 | `--debug` | 关闭 / Off | 保存带四角轮廓的原图预览。 / Save source-image previews with corner outlines. |
 
-`--manual`、`--review`、`--fixed`、`--retry-failed` 互斥；`--trim-black` 与 `--no-trim-black` 互斥。
+`--manual`、`--review`、`--black-review`、`--fixed`、`--retry-failed` 互斥；`--trim-black` 与 `--no-trim-black` 互斥。
 
-`--manual`, `--review`, `--fixed`, and `--retry-failed` are mutually exclusive. `--trim-black` and `--no-trim-black` are also mutually exclusive.
+`--manual`, `--review`, `--black-review`, `--fixed`, and `--retry-failed` are mutually exclusive. `--trim-black` and `--no-trim-black` are also mutually exclusive.
 
 ## 4. 输出与报告 / Outputs and reports
 
