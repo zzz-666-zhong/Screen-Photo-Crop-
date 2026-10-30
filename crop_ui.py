@@ -403,6 +403,8 @@ class CropWorkspace:
         self.pause_button.pack(side='left',padx=8)
         self.resume_button=ttk.Button(batchbar,text='继续 / Resume',command=self.resume_last)
         self.resume_button.pack(side='left')
+        self.algorithm_button=ttk.Button(batchbar,text='改用黑边 / Use frame',command=self.toggle_detector)
+        self.algorithm_button.pack(side='left',padx=12)
         ttk.Button(batchbar,text='导出确认标签 / Export labels',command=self.export_labels).pack(side='right')
         quality=ttk.Frame(self.editor)
         quality.pack(fill='x',pady=(2,4))
@@ -657,6 +659,7 @@ class CropWorkspace:
         self.restore_draft=None
         self.source_digest=''
         self.automatic_quad=None
+        self.restored_detector=None
         self.selection=None
         self.fixed_outline=None
         self.source_pil=self.preview_pil=None
@@ -681,9 +684,11 @@ class CropWorkspace:
         draft=self.session.drafts.get(self.session.names[self.current_index])
         self.restore_draft=draft if draft and draft.get('source_sha256')==digest else None
         self.restored_modified=record.get('manual_modified',False) if record.get('source_sha256')==digest else False
+        self.restored_detector=record.get('detector') if record.get('source_sha256')==digest else None
 
     def selection_metadata(self):
-        return dict(manual_modified=self.selection.manual_modified)
+        return dict(manual_modified=self.selection.manual_modified,
+                    detector=getattr(self,'selection_detector','black' if self.selection.args.black_review else 'edges'))
 
     def reject_capture(self):
         if not self.busy or self.processing or self.selection is None or self.action.get()!='pending':return
@@ -701,7 +706,8 @@ class CropWorkspace:
             session.drafts[session.names[session.index]]=dict(
                 points=[list(map(float,p)) for p in self.selection.points],
                 manual_modified=self.selection.manual_modified,automatic_quad=self.automatic_quad,
-                source_sha256=self.source_digest)
+                source_sha256=self.source_digest,algorithm=getattr(self,'current_algorithm',None),
+                detector=getattr(self,'selection_detector',None))
             session.data.update(cursor=session.index,cursor_file=session.names[session.index],updated_at=timestamp())
             self.checkpoint_tasks.append(self.io_executor.submit(atomic_json,session.path,copy.deepcopy(session.data)))
             if hasattr(self,'picture_list'):
@@ -912,6 +918,7 @@ class CropWorkspace:
         self.settings_button.configure(state="disabled")
         self.filename.set(filename or "当前图片 / Current image")
         self.counter.set(title.replace("/", " / "))
+        self.restore_current_algorithm(args)
         shape = "正方形 1:1 / Square" if args.square else "完整图片 / Full picture"
         self.mode_badge.set(('固定坐标 / Fixed · ' if args.fixed else '黑边确认 / Black review · ' if args.black_review else '') + shape)
         self.save_button.configure(text='确认并批量导出 / Confirm & export ↵' if args.fixed else
@@ -926,6 +933,7 @@ class CropWorkspace:
         self.preview_pil = None
         self.preview_detail.set('等待当前图片四角 / Waiting for current corners')
         self.action.set("pending")
+        self.update_detector_controls(args)
         self.stage.set('请确认 / Review')
         self._disable_actions()
         self.skip_button.configure(state="normal")
@@ -949,7 +957,8 @@ class CropWorkspace:
             self.selection.set_corners(proposed)
             self.selection.manual_modified=self.restored_modified
             self._selection_changed()
-        elif auto_detect and self.prepared_item is not None:
+        elif (auto_detect and self.prepared_item is not None
+              and self.prepared_item.algorithm==self.current_algorithm):
             prepared=self.prepared_item
             if prepared.corners is not None:
                 self.selection.points=[tuple(map(float,p)) for p in prepared.corners]
@@ -958,7 +967,7 @@ class CropWorkspace:
             self._selection_changed()
             if prepared.error:self.status.set('请手动选四角 / Select corners manually · '+prepared.error)
         elif auto_detect:
-            self.future = self.executor.submit(self.detect_review_corners, image, args)
+            self.future = self.executor.submit(self.detect_review_corners, image, self.detection_args(args))
             self._poll_detection()
         else:
             self._selection_changed()
@@ -981,6 +990,42 @@ class CropWorkspace:
         detector=self.backend.detect_black_border if args.black_review else self.backend.detect_screen
         return detector(image,square=args.square)
 
+    def restore_current_algorithm(self,args):
+        self.current_algorithm='black' if args.black_review else 'edges'
+        self.selection_detector=self.current_algorithm
+        if getattr(self,'restored_detector',None) in ('black','edges'):
+            self.current_algorithm=self.selection_detector=self.restored_detector
+        draft=getattr(self,'restore_draft',None) or {}
+        if draft.get('algorithm') in ('black','edges'):self.current_algorithm=draft['algorithm']
+        if draft.get('detector') in ('black','edges'):self.selection_detector=draft['detector']
+
+    def detection_args(self,args):
+        import copy
+        chosen=copy.copy(args)
+        chosen.black_review=getattr(self,'current_algorithm','black' if args.black_review else 'edges')=='black'
+        return chosen
+
+    def update_detector_controls(self,args):
+        black=getattr(self,'current_algorithm','black' if args.black_review else 'edges')=='black'
+        allowed=args.review or args.black_review
+        enabled=(allowed and self.busy and self.future is None and not getattr(self,'processing',False))
+        self.algorithm_button.configure(text='改用边缘 / Use edges' if black else '改用黑边 / Use frame',
+                                        state='normal' if enabled else 'disabled')
+        if allowed:
+            shape='正方形 1:1 / Square' if args.square else '完整图片 / Full picture'
+            self.mode_badge.set(('黑边算法 / Frame · ' if black else '边缘算法 / Edges · ')+shape)
+
+    def toggle_detector(self):
+        if (not self.busy or self.selection is None or self.future is not None
+                or getattr(self,'processing',False) or self.action.get()!='pending'):
+            return
+        args=self.selection.args
+        if not (args.review or args.black_review):return
+        current=getattr(self,'current_algorithm','black' if args.black_review else 'edges')
+        self.current_algorithm='edges' if current=='black' else 'black'
+        self.update_detector_controls(args)
+        self.detect_current()
+
     def detect_current(self):
         """Offer detection in manual/retry too; preserve existing points on failure."""
         if self.selection is None or self.future is not None or not self.busy or getattr(self,'processing',False):
@@ -990,7 +1035,7 @@ class CropWorkspace:
         for button in (self.skip_button,self.stop_button,self.pause_button):
             button.configure(state='normal')
         self.status.set('正在识别边界，请稍候 / Detecting boundaries…')
-        self.future=self.executor.submit(self.detect_review_corners,self.selection.image,self.selection.args)
+        self.future=self.executor.submit(self.detect_review_corners,self.selection.image,self.detection_args(self.selection.args))
         self._poll_detection()
 
     def _poll_detection(self):
@@ -1007,6 +1052,7 @@ class CropWorkspace:
             if corners is not None:
                 self.selection.set_corners(corners)
                 self.selection.manual_modified=False
+                self.selection_detector=getattr(self,'current_algorithm','black' if self.selection.args.black_review else 'edges')
                 self.automatic_quad=corners.astype(float).tolist()
         except Exception as exc:
             error = str(exc)
@@ -1016,10 +1062,10 @@ class CropWorkspace:
         if error:
             self.status.set(f"识别不可用，请手动选四角 / Select corners manually · {error}")
         elif corners is None:
-            self.status.set('未找到可信边界，可放大后手动选四角 / No reliable boundary; zoom in and select corners manually')
+            self.status.set('未找到可信边界，保留原选区；可切换算法或手动选四角 / No reliable boundary; existing selection kept. Switch or select manually.')
 
     def _disable_actions(self):
-        for button in (self.save_button,self.reset_button,self.detect_button,self.undo_button,self.skip_button,self.capture_button,self.stop_button,
+        for button in (self.save_button,self.reset_button,self.detect_button,self.algorithm_button,self.undo_button,self.skip_button,self.capture_button,self.stop_button,
                        self.previous_button,self.pause_button,self.resume_button):
             button.configure(state="disabled")
 
@@ -1031,6 +1077,7 @@ class CropWorkspace:
         self.reset_button.configure(state="normal")
         self.detect_button.configure(state="normal")
         self.capture_button.configure(state='normal')
+        self.update_detector_controls(self.selection.args)
         self.undo_button.configure(state="normal" if self.selection.points else "disabled")
         self.preview_detail.set(f"{preview.shape[1]} × {preview.shape[0]} px · 尚未保存 / Not saved" if ready else "等待有效四角 / Waiting for valid corners")
         ready_message = ("四角确认后按 Enter：后续按相同坐标自动导出，无需逐张审核 / Enter: confirm corners and export the rest without review"

@@ -10,6 +10,7 @@ class PreparedImage:
     corners: object = None
     preview: object = None
     error: str = ''
+    algorithm: str = 'edges'
 
 
 class ReviewPipeline:
@@ -29,7 +30,7 @@ class ReviewPipeline:
         signature=self.key(path)
         digest = fingerprint(path)
         image = self.backend.load_image(path)
-        result = PreparedImage(digest, image)
+        result = PreparedImage(digest, image,algorithm='black' if self.args.black_review else 'edges')
         if not (self.args.manual or self.args.retry_failed):
             try:
                 detector = self.backend.detect_black_border if self.args.black_review else self.backend.detect_screen

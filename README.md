@@ -4,7 +4,11 @@
 
 Extract complete pictures from photographed screens with automatic corner detection, perspective correction, and dark-content preservation. Includes a pretrained model, a single-page preview, Enter-to-save review, manual re-cropping, and square mode.
 
-**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.11.0**
+**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.11.1**
+
+逐张审核时可点击 **“改用黑边 / Use frame”** 为当前图片重新识别，也可点击 **“改用边缘 / Use edges”** 切回。上方显示当前算法；切换只影响这一张，下一张沿用批次原模式。切换不会自动保存，未找到新边界时保留原选区，仍可手动调整。普通审核和黑边审核均支持该按钮。
+
+During Review, click **Use frame** to re-detect the current image with the black-border algorithm, or **Use edges** to switch back. The current algorithm is shown above. The override applies only to this image; the next uses the batch default. Switching does not save; an unsuccessful detection preserves the previous selection for manual adjustment. The button is available in both Review and Black-border review.
 
 **自动识别以图片边缘为主，未找到边界时才尝试细黑框辅助；“黑边识别”模式仍优先定位细黑框。** 审核时发现照片需要重拍，可选择严重模糊、反光遮挡、目标缺失、未拍完整或其他原因，点击 **“拍摄失败 / Reject”**。程序复制原照片到结果目录 `拍摄失败/`，并更新 `拍摄失败记录.csv`（Excel 可直接打开），然后继续下一张；原输入照片保留。识别失败本身不会自动判定拍摄失败。
 

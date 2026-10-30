@@ -1,5 +1,10 @@
 # 更新记录 / Changelog
 
+## 0.11.1 — 2026-10-30
+
+- 逐张审核新增当前图片的边缘/黑边算法切换按钮，后台重新识别并显示当前算法；下一张保留批次默认模式。 / Add per-image edge/frame switching in review with background re-detection; the next image retains the batch default.
+- 切换失败保留原选区；草稿和确认记录保留算法选择及来源，避免恢复时混用预读结果。 / Preserve selections on failed switching and record draft/detector provenance to avoid mismatched prefetched proposals after Resume.
+
 ## 0.11.0 — 2026-10-30
 
 - 普通识别恢复图片边缘优先，只有主路径无边界时才参考细黑框；专用黑边模式保持黑框优先。 / Restore picture-edge priority in ordinary detection; thin frames are fallback only. Black-border review remains frame-first.

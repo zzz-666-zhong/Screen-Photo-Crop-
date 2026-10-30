@@ -27,7 +27,7 @@ except ImportError as exc:
     ) from exc
 
 
-__version__ = "0.11.0"
+__version__ = "0.11.1"
 
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 SUCCESS_FOLDER = "裁剪成功"
@@ -736,6 +736,7 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
         digest = ''
         corners = None
         modified = record.get('manual_modified',False)
+        selected_detector=record.get('detector')
         actual_source = path
         if args.retry_failed and not path.exists():
             retained=labels.data['items'].get(record.get('source_sha256'),{})
@@ -822,8 +823,10 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
                         cropped = perform(lambda:finish_crop(rectify(image, corners, square=args.square), args))
                     information = workspace.selection_metadata() if needs_review and hasattr(workspace,'selection_metadata') else {}
                     modified = information.get('manual_modified',bool(args.manual or args.retry_failed))
+                    selected_detector=information.get('detector',selected_detector)
+                    item_model=dict(model_version,reviewed_detector=selected_detector) if selected_detector else model_version
                     detail=perform(save_crop_result,image,corners,cropped,target,destination,relative,
-                        actual_source,args,labels,digest,needs_review,modified,model_version,session.options)
+                        actual_source,args,labels,digest,needs_review,modified,item_model,session.options)
                     status='ok'
                     if capture_failures is not None:
                         perform(capture_failures.resolved,actual_source,digest)
@@ -854,6 +857,7 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
         if digest: extra['source_sha256']=digest
         if status == 'ok' and corners is not None:
             extra.update(quad=corners.astype(float).tolist(),manual_modified=modified)
+            if selected_detector:extra['detector']=selected_detector
         perform(session.record,index,status,str(target.relative_to(destination)),detail,**extra)
         if workspace is not None:
             workspace.record(status, str(relative), detail)

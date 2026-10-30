@@ -156,6 +156,68 @@ class ManualDetectionTests(unittest.TestCase):
         workspace.action.set.assert_not_called()
 
 
+class AlgorithmSwitchTests(unittest.TestCase):
+    def workspace(self,result=None):
+        if result is None:result=np.float32([[20,15],[120,15],[120,85],[20,85]])
+        workspace,original=ManualDetectionTests().make_workspace(result)
+        workspace.selection.args.manual=False
+        workspace.selection.args.review=True
+        workspace.current_algorithm=workspace.selection_detector='edges'
+        workspace.algorithm_button=Mock();workspace.mode_badge=Mock()
+        return workspace,original
+
+    def test_switch_redetects_current_image_and_can_switch_back_without_saving(self):
+        workspace,_=self.workspace()
+        args=workspace.selection.args
+        workspace.toggle_detector()
+        self.assertEqual(workspace.current_algorithm,'black')
+        first=workspace.executor.submit.call_args.args[2]
+        self.assertTrue(first.black_review)
+        self.assertFalse(args.black_review)
+        self.assertTrue(args.review)
+        self.assertEqual(workspace.selection_metadata()['detector'],'black')
+        workspace.toggle_detector()
+        self.assertEqual(workspace.current_algorithm,'edges')
+        self.assertFalse(workspace.executor.submit.call_args.args[2].black_review)
+        self.assertTrue(first.black_review)  # Each background task owns a snapshot.
+        workspace.action.set.assert_not_called()
+
+    def test_failed_switch_preserves_existing_points_and_their_provenance(self):
+        workspace,original=self.workspace()
+        workspace.executor.submit.return_value.result.return_value=None
+        workspace.toggle_detector()
+        np.testing.assert_allclose(workspace.selection.points,original)
+        self.assertTrue(workspace.selection.manual_modified)
+        self.assertEqual(workspace.selection_metadata()['detector'],'edges')
+        self.assertIn('保留原选区',workspace.status.set.call_args.args[0])
+
+    def test_switch_is_unavailable_while_processing_or_detecting(self):
+        workspace,_=self.workspace()
+        workspace.processing=True
+        workspace.toggle_detector();workspace.executor.submit.assert_not_called()
+        workspace.processing=False;workspace.future=Mock()
+        workspace.toggle_detector();workspace.executor.submit.assert_not_called()
+
+    def test_black_review_can_temporarily_choose_edges_without_changing_batch_options(self):
+        workspace,_=self.workspace()
+        workspace.selection.args.review=False;workspace.selection.args.black_review=True
+        workspace.current_algorithm='black'
+        workspace.toggle_detector()
+        self.assertEqual(workspace.current_algorithm,'edges')
+        self.assertTrue(workspace.selection.args.black_review)
+        self.assertFalse(workspace.executor.submit.call_args.args[2].black_review)
+
+    def test_new_photo_uses_batch_default_and_drafts_restore_the_current_choice(self):
+        workspace,_=self.workspace()
+        workspace.current_algorithm='black'
+        workspace.restore_current_algorithm(workspace.selection.args)
+        self.assertEqual(workspace.current_algorithm,'edges')
+        workspace.restore_draft=dict(algorithm='black',detector='edges')
+        workspace.restore_current_algorithm(workspace.selection.args)
+        self.assertEqual(workspace.current_algorithm,'black')
+        self.assertEqual(workspace.selection_detector,'edges')
+
+
 class DirectRecropTests(unittest.TestCase):
     def setUp(self):
         SelectionTests.setUp(self)

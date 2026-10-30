@@ -45,6 +45,16 @@ Double-click **`启动裁剪.cmd`**, or run the command below. Direct execution 
 
 With no arguments, the startup page lets you choose folders, Review/Black-border review/Manual/Fixed/Retry, and Full picture/Square 1:1. Retry uses the previous result root. Completion stays on the same page; Settings starts another batch.
 
+## 当前图片切换算法 / Switch the current image's detector
+
+在普通审核点击 **“改用黑边 / Use frame”**，当前图片会重新计算黑框四角与预览；再点 **“改用边缘 / Use edges”** 可切回。黑边审核也支持临时改用边缘识别。上方算法标识随之更新，只有按 Enter 或保存按钮才写入裁剪结果。未找到可靠边界时保留原选区；当前图片仍可手动调整。
+
+In Review, **Use frame** re-detects the current image's dark border and updates the preview; **Use edges** switches back. Black-border review can temporarily use picture-edge detection too. The algorithm badge updates, but only Enter/Save writes the crop. A failed detection keeps the previous selection for manual adjustment.
+
+切换仅作用于当前图片，不改变批次设置或下一张预读算法。下一张恢复批次原算法。暂停/关闭后续裁会恢复当前图片的选区和算法选择；已有结果回看时保留生成该选区的算法记录。识别或保存中暂时禁用切换按钮。
+
+The override affects this image only, leaving batch settings and look-ahead unchanged. The next image uses the batch default. Resume restores the current draft and detector choice; saved selections retain their detector provenance. Switching is disabled during detection/saving.
+
 ## 后台准备与最后一张 / Background preparation and the final image
 
 普通模式优先使用图片边缘、浅色区域及原有模型识别四角，已有边缘结果不被黑框结果替换；只有未找到边界时才尝试细黑框辅助。专用“黑边识别”模式继续以细黑框为主。自动和预读使用相同的优先级。
