@@ -47,6 +47,10 @@ With no arguments, the startup page lets you choose folders, Review/Black-border
 
 ## 后台准备与最后一张 / Background preparation and the final image
 
+普通模式优先使用图片边缘、浅色区域及原有模型识别四角，已有边缘结果不被黑框结果替换；只有未找到边界时才尝试细黑框辅助。专用“黑边识别”模式继续以细黑框为主。自动和预读使用相同的优先级。
+
+Normal modes prioritize picture edges, light regions and the existing model. A primary boundary is not replaced by a frame result; thin frames are consulted only if no primary is found. Black-border review remains frame-first. Live detection and look-ahead use the same priority.
+
 逐张审核当前图片时，下一张的读取、识别和预览会在后台计算，预览下方显示“后台准备下一张”或“下一张已准备”。手动和失败补裁只预读原图，仍等待你选点。预读不会保存裁剪结果或确认训练标签；固定坐标模式仍按已确认坐标导出。
 
 While reviewing an image, background work prepares the next source, detection and preview. The hint below the preview reports readiness. Manual/Retry preload only the source and still wait for your points. Look-ahead does not save outputs or confirm training labels; Fixed continues using the confirmed coordinates.
@@ -54,6 +58,20 @@ While reviewing an image, background work prepares the next source, detection an
 按 Enter 后进入“正在保存与整理”；最后一张保存和报告写入完成后显示“已完成”。保存中按暂停、结束或关闭，程序会完成当前写入再执行请求。原图和输出沿用原有目录与命名；PNG 保持无损，较低压缩等级可提升速度但可能增大文件。
 
 After Enter, Saving & updating remains visible until writing completes; the last image then transitions to Complete. Pause/Stop/Close during saving waits for the active write. Folder and filename conventions remain the same. PNG is lossless; faster compression may increase file size.
+
+## 拍摄失败归档与表格 / Rejecting captures and the ledger
+
+审核时若照片严重模糊、反光遮挡、目标缺失或未拍完整，在“拍摄失败 / Reject”旁选择原因，再点击该按钮即可归档并进入下一张，无需先选四角。也可选择“其他”。这属于人工质量判断；未识别到边界仍可手动选四角，不会自动归为拍摄失败。
+
+For blur, obstructing glare, a missing target or cut-off content, select a reason beside **Reject** and click the button to archive and advance, even without valid corners. Other is available. This is a manual quality decision; a missing automatic boundary still permits manual selection and is not automatically rejected.
+
+- `结果目录/拍摄失败/`：保留子目录和原照片；同名但内容不同的文件使用哈希后缀，避免覆盖。 / Copies retain subfolders; different content under the same filename gets a hash suffix.
+- `结果目录/拍摄失败记录.csv`：记录文件名、原路径、归档路径、原因、待重拍/已重新裁剪状态、UTC 时间和 SHA-256。UTF-8 BOM 可供 Excel 打开。 / Excel-readable UTF-8 BOM CSV records paths, reasons, Retake/Re-cropped status, UTC timestamps and SHA-256.
+- `结果目录/capture_failures.json`：用于去重和更新表格，请与记录一起保留。重复标记更新同一条记录；重新审核并保存成功后标为“已重新裁剪”，归档副本作为历史保留。已有裁剪结果不会因标记而被删除。 / Retain this ledger for deduplication and updates; re-cropping marks a record resolved while keeping its archive and any earlier saved crop.
+
+右侧可筛选“拍摄失败”，双击回看；这类图片计入已处理，但只有实际存在输出时才计入已裁剪。“继续上次批次”不会重新弹出已标记的照片。需要重新裁剪时双击该行；需要重拍时可按 CSV 清单重拍后导入新批次。原有“失败图片补裁”处理 `裁剪失败/` 中的识别/裁剪失败副本。
+
+Filter Rejected on the right and double-click to revisit. Rejections count as processed, and count as cropped only if an output exists. Resume skips settled rejections. Revisit a row to re-crop, or use the CSV as a retake list and import new captures as a new batch. Retry failures continues to use detection/crop failures under `裁剪失败/`.
 
 ## 黑边识别 · 手动确认 / Black-border detection with manual confirmation
 
@@ -82,13 +100,13 @@ Detection combines long edges/dark contours in a reduced image, checks the exter
 
 ## 图片状态和进度 / Image status and progress
 
-开始或继续批次后，右侧“图片状态 / Images”列出当前源文件夹的图片。下拉框可选择全部、未裁剪、已裁剪、待处理、已跳过或失败；双击某一行可跳转到该图进行查看或修改。固定坐标模式使用统一坐标，修改坐标需开始新批次。
+开始或继续批次后，右侧“图片状态 / Images”列出当前源文件夹的图片。下拉框可选择全部、未裁剪、已裁剪、待处理、已跳过、失败或拍摄失败；双击某一行可跳转到该图进行查看或修改。固定坐标模式使用统一坐标，修改坐标需开始新批次。
 
-After Start or Resume, the right-hand Images panel lists the current source folder. Filter All, No crop, Cropped, Pending, Skipped, or Error; double-click a row to open it. Fixed-coordinate mode uses one shared selection and requires a new batch to change it.
+After Start or Resume, the right-hand Images panel lists the current source folder. Filter All, No crop, Cropped, Pending, Skipped, Error, or Rejected; double-click a row to open it. Fixed-coordinate mode uses one shared selection and requires a new batch to change it.
 
-面板“已裁”按 `裁剪成功` 中实际存在的输出统计；“未裁”包含尚未处理、跳过或失败但没有成功输出的照片。“已处理”依据当前批次记录，包含跳过和失败，因此可能与已裁数量不同。草稿表示存在未确认的四角；“已裁·草稿”表示旧结果仍在、当前编辑尚未确认。“结果缺失”表示记录中有成功结果但输出文件不存在。
+面板“已裁”按 `裁剪成功` 中实际存在的输出统计；“未裁”包含尚未处理、跳过或失败但没有成功输出的照片。“已处理”依据当前批次记录，包含跳过、失败和拍摄失败，因此可能与已裁数量不同。草稿表示存在未确认的四角；“已裁·草稿”表示旧结果仍在、当前编辑尚未确认。“结果缺失”表示记录中有成功结果但输出文件不存在。
 
-Cropped counts files actually present in `裁剪成功`; No crop includes pending, skipped, and failed photos without a successful output. Processed counts terminal batch records, including skipped/errors, and can differ from Cropped. Draft marks unconfirmed corners; Saved·Draft means the previous crop exists while edits are unconfirmed. Missing indicates a successful record whose output file is absent.
+Cropped counts files actually present in `裁剪成功`; No crop includes pending, skipped, and failed photos without a successful output. Processed counts terminal batch records, including skipped/errors/rejections, and can differ from Cropped. Draft marks unconfirmed corners; Saved·Draft means the previous crop exists while edits are unconfirmed. Missing indicates a successful record whose output file is absent.
 
 进度条表示已裁数量占图片总数的比例。启动或继续批次时扫描结果目录，处理每张后更新；如果在程序外移动、删除或新增裁剪结果，点击面板“刷新”重新扫描。照片、结果及进度文件不因查看列表被修改。
 
@@ -201,6 +219,7 @@ python screen_crop.py "D:\裁剪结果" --retry-failed --square
 | 重新裁剪 / Re-crop · R | 清空当前四角和预览，在同一张原图重新选点。 | Clear corners and preview, then reselect on the same original. |
 | 撤销 / Undo · 右键 / Right click · Backspace | 撤销一个点；重新选四角前不能保存旧预览。 | Undo one point; stale previews cannot be saved. |
 | 跳过 / Skip · Esc | 当前图片进入失败副本目录，继续下一张，不写入新裁剪。 | Copy the skipped source to failures and advance without writing a crop. |
+| 拍摄失败 / Reject | 按所选原因复制归档原照片并更新 CSV，继续下一张。 | Archive the source with the selected reason, update the CSV, and advance. |
 | 上一张 / Previous | 返回上一张并载入已保存四角，再次保存后更新结果。 | Reopen the previous original with saved corners; save to update. |
 | 暂停 / Pause · 继续 / Resume | 保存当前草稿及进度，恢复后继续选点。 | Retain the current draft and progress, then resume selection. |
 | 结束 / Stop · 关闭窗口 / Close | 停止本批，保留已经保存的结果；当前及剩余图片不导出失败副本。 | Stop the batch and retain saved results; current/remaining photos are not exported as failures. |

@@ -1,5 +1,11 @@
 # 更新记录 / Changelog
 
+## 0.11.0 — 2026-10-30
+
+- 普通识别恢复图片边缘优先，只有主路径无边界时才参考细黑框；专用黑边模式保持黑框优先。 / Restore picture-edge priority in ordinary detection; thin frames are fallback only. Black-border review remains frame-first.
+- 新增人工“拍摄失败”与原因选项，归档原照片并生成 Excel 可读 CSV；支持去重、进度筛选和重新裁剪后更新状态。 / Add manual capture rejection/reasons, source archives and an Excel-readable CSV with deduplication, filtering and re-crop resolution.
+- 回看之前的草稿后，已标记的拍摄失败照片不会再次自动进入审核或预读；主动双击仍可重新裁剪。 / Settled rejections are skipped during automatic navigation/look-ahead after revisiting drafts; double-click still allows re-cropping.
+
 ## 0.10.0 — 2026-10-30
 
 - 逐张审核预读下一张的原图、识别四角和预览；缓存仅保留一张后续图片，手动和补裁仅预读原图。 / Prepare one next image, detection and preview during review; Manual/Retry preload only the source.

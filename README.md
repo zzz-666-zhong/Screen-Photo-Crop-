@@ -4,7 +4,11 @@
 
 Extract complete pictures from photographed screens with automatic corner detection, perspective correction, and dark-content preservation. Includes a pretrained model, a single-page preview, Enter-to-save review, manual re-cropping, and square mode.
 
-**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.10.0**
+**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.11.0**
+
+**自动识别以图片边缘为主，未找到边界时才尝试细黑框辅助；“黑边识别”模式仍优先定位细黑框。** 审核时发现照片需要重拍，可选择严重模糊、反光遮挡、目标缺失、未拍完整或其他原因，点击 **“拍摄失败 / Reject”**。程序复制原照片到结果目录 `拍摄失败/`，并更新 `拍摄失败记录.csv`（Excel 可直接打开），然后继续下一张；原输入照片保留。识别失败本身不会自动判定拍摄失败。
+
+**Normal detection prioritizes picture edges and uses thin frames only when no primary boundary is found. Black-border review remains frame-first.** During review, select a capture-quality reason and click **Reject** to copy the original into `拍摄失败/` under the result folder and update `拍摄失败记录.csv` (Excel-readable), then advance. Input originals are retained. A failed detection alone does not classify a capture as rejected.
 
 逐张确认时，程序会在后台准备下一张的原图、边界和裁剪预览；预览下方显示准备状态。图片与进度保存、缩略图解码也在后台完成。确认最后一张后，顶部显示“已完成”，可返回设置开始下一批。保存中请求暂停、停止或关闭，会先完成当前写入；PNG 仍为无损格式，使用较低压缩等级以加快保存，文件可能略大。
 
@@ -152,9 +156,9 @@ python screen_crop.py "D:\拍屏照片" "D:\裁剪结果" --black-review --squar
 
 After starting or resuming a batch, the right panel lists the folder's images and counts **cropped, uncropped, drafts, skipped, errors, and processed**. Filter No crop to find images without a successful output, including pending, skipped, and failed photos; double-click a row to navigate. Refresh rescans output files. The bottom progress bar shows the proportion with cropped results.
 
-“已裁”按 `裁剪成功` 中实际存在的输出文件统计；“已处理”按本批次记录统计，包含跳过和失败，因此两者可能不同。已有结果但正在重新调整的图片会标记为“已裁·草稿”；记录显示成功但文件已被移走时，显示“结果缺失”。固定坐标模式仍需开始新批次才能更改统一坐标。
+“已裁”按 `裁剪成功` 中实际存在的输出文件统计；“已处理”按本批次记录统计，包含跳过、失败和拍摄失败，因此两者可能不同。已有结果但正在重新调整的图片会标记为“已裁·草稿”；记录显示成功但文件已被移走时，显示“结果缺失”。固定坐标模式仍需开始新批次才能更改统一坐标。
 
-Cropped counts actual files in `裁剪成功`; Processed uses batch records and includes skipped/errors, so the totals can differ. An existing crop with an unfinished edit is marked Saved·Draft; a successful record with a missing file is marked Missing. Fixed-coordinate batches still require a new batch to change their shared corners.
+Cropped counts actual files in `裁剪成功`; Processed uses batch records and includes skipped/errors/rejections, so the totals can differ. An existing crop with an unfinished edit is marked Saved·Draft; a successful record with a missing file is marked Missing. Fixed-coordinate batches still require a new batch to change their shared corners.
 
 ### 固定坐标：确认一次，批量导出 / Fixed coordinates: confirm once, export a batch
 
@@ -362,6 +366,7 @@ python screen_crop.py "D:\裁剪结果" --retry-failed --square
 | 重新裁剪 / Re-crop · R | 清空当前四角和预览，在同一张原图重新选点。 | Clear corners and preview, then reselect on the same original. |
 | 撤销 / Undo · 右键 / Right click · Backspace | 撤销一个点；重新选四角前不能保存旧预览。 | Undo one point; stale previews cannot be saved. |
 | 跳过 / Skip · Esc | 当前图片进入失败副本目录，继续下一张，不写入新裁剪。 | Copy the skipped source to failures and advance without writing a crop. |
+| 拍摄失败 / Reject | 按所选原因复制归档原照片并更新 CSV，继续下一张。 | Archive the source with the selected reason, update the CSV, and advance. |
 | 结束 / Stop · 关闭窗口 / Close | 停止本批，保留已经保存的结果；当前及剩余图片不导出失败副本。 | Stop the batch and retain saved results; current/remaining photos are not exported as failures. |
 
 审核、手动和失败补裁使用同一工作台。自动批处理不弹出预览。已有输出默认跳过，重新审核时加 `--overwrite`。

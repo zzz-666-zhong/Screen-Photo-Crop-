@@ -29,7 +29,7 @@ class ProgressTests(unittest.TestCase):
         self.assertEqual([image_state(self.session,i,saved) for i in range(6)],
                          ['saved','draft','saved_error','skipped','missing','pending'])
         summary=progress_summary(self.session,saved)
-        self.assertEqual(summary,dict(total=6,cropped=2,uncropped=4,processed=3,skipped=1,errors=1,drafts=1))
+        self.assertEqual(summary,dict(total=6,cropped=2,uncropped=4,processed=3,skipped=1,errors=1,drafts=1,capture_failed=0))
         self.assertEqual([self.names[i] for i in range(6) if matches_filter(self.session,i,saved,'uncropped')],
                          ['nested/b.jpg','d.jpg','e.jpg','f.jpg'])
         self.assertEqual([self.names[i] for i in range(6) if matches_filter(self.session,i,saved,'error')],['c.jpg'])
@@ -45,6 +45,16 @@ class ProgressTests(unittest.TestCase):
         self.assertEqual(image_state(self.session,1,refreshed),'saved_draft')
         self.assertEqual(image_state(self.session,0,refreshed),'pending')
         self.assertNotEqual(saved,refreshed)
+
+    def test_capture_rejection_has_its_own_filter_and_count(self):
+        self.records['f.jpg']={'status':'capture_failed'}
+        self.session.pending=lambda i:self.names[i] in self.drafts or self.records.get(self.names[i],{}).get('status') not in ('ok','existing','skipped','error','capture_failed')
+        saved=existing_crops(self.root,self.names)
+        self.assertEqual(image_state(self.session,5,saved),'capture_failed')
+        self.assertTrue(matches_filter(self.session,5,saved,'capture_failed'))
+        self.assertFalse(matches_filter(self.session,5,saved,'error'))
+        summary=progress_summary(self.session,saved)
+        self.assertEqual((summary['capture_failed'],summary['processed'],summary['cropped']),(1,4,2))
 
 
 if __name__=='__main__':

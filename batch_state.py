@@ -136,7 +136,7 @@ class BatchSession:
 
     def pending(self, index):
         name = self.names[index]
-        return name in self.drafts or self.records.get(name, {}).get('status') not in ('ok','existing','skipped','error')
+        return name in self.drafts or self.records.get(name, {}).get('status') not in ('ok','existing','skipped','error','capture_failed')
 
     def first_pending(self):
         return next((i for i in range(len(self.names)) if self.pending(i)), len(self.names))

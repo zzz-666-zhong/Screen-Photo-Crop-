@@ -27,7 +27,7 @@ except ImportError as exc:
     ) from exc
 
 
-__version__ = "0.10.0"
+__version__ = "0.11.0"
 
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 SUCCESS_FOLDER = "裁剪成功"
@@ -356,24 +356,25 @@ def load_scoring_forest(path, modified_ns):
 
 
 def detect_screen(image: np.ndarray, *, square: bool = False) -> np.ndarray | None:
-    """Detect complete picture bounds, including light pages and thin dark frames."""
-    return _detect_screen_general(image, square=square, include_frame=True)
+    """Prefer picture edges; consult a thin frame only when the primary fails."""
+    primary=_detect_screen_general(image,square=square)
+    if primary is not None:
+        return primary
+    frame=detect_black_border(image,square=square)
+    if frame is not None:
+        target=np.float32([[0,0],[63,0],[63,63],[0,63]])
+        sample=cv2.warpPerspective(image,cv2.getPerspectiveTransform(frame,target),(64,64))
+        if np.std(cv2.cvtColor(sample,cv2.COLOR_BGR2GRAY))>=6:
+            return frame
+    return None
 
 
-def _detect_screen_general(image: np.ndarray, *, square: bool = False,
-                           include_frame: bool = False) -> np.ndarray | None:
+def _detect_screen_general(image: np.ndarray, *, square: bool = False) -> np.ndarray | None:
     import json
     from white_border import detect_light_picture, light_score
     light=detect_light_picture(image,order_corners,square=square)
     if light is not None:
         (score,quad,metrics),light_evidence=light
-        if include_frame and min(metrics['edge_strength'])>60:
-            frame=detect_black_border(image,square=square)
-            if frame is not None:
-                intersection,_=cv2.intersectConvexConvex(np.float32(quad),frame)
-                union=abs(cv2.contourArea(np.float32(quad)))+abs(cv2.contourArea(frame))-intersection
-                if union>0 and intersection/union>.9:
-                    return frame
         # Low-contrast/white sides rely on the full region and square prior.
         # Refining them to stronger interior lines would cut off white content.
         if min(metrics['edge_strength'])>25:
@@ -381,18 +382,6 @@ def _detect_screen_general(image: np.ndarray, *, square: bool = False,
             checked=light_score(light_evidence,refined,square=square)
             if checked is not None and checked[0]>=score-.02:return refined
         return np.float32(quad)
-    if include_frame:
-        # A supported, complete dark outline is useful for text images whose
-        # pale interior offers little color/texture evidence to the forest.
-        # Light-picture detection must run first to preserve white margins.
-        frame=detect_black_border(image,square=square)
-        if frame is not None:
-            target=np.float32([[0,0],[63,0],[63,63],[0,63]])
-            sample=cv2.warpPerspective(image,cv2.getPerspectiveTransform(frame,target),(64,64))
-            # A plain dark UI panel is not evidence of a picture; sparse text
-            # and dark photographs still have meaningful interior variation.
-            if np.std(cv2.cvtColor(sample,cv2.COLOR_BGR2GRAY))>=6:
-                return frame
     evidence=photo_evidence(image)
     candidates=photo_candidates(image,evidence=evidence)
     if not candidates:return None
@@ -706,6 +695,8 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
     if args.retry_failed: output_directories.append(destination/'label_sources')
     prepare_output_directories(output_directories)
     labels = LabelStore(destination)
+    from capture_failures import CaptureFailures
+    capture_failures=CaptureFailures(destination) if (destination/'capture_failures.json').exists() else None
     session = BatchSession(destination, source, files, args, __version__)
     interactive = args.manual or args.review or args.retry_failed or args.fixed or args.black_review
     fixed_template = session.data.get('fixed_coordinates') if args.fixed else None
@@ -739,6 +730,7 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
         target = success_dir / relative.with_name(relative.name + "_cropped.png")
         failed_copy = failure_dir / relative
         status, detail = "error", ""
+        capture_archive=None
         name = relative.as_posix()
         record = session.records.get(name,{})
         digest = ''
@@ -749,7 +741,7 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
             retained=labels.data['items'].get(record.get('source_sha256'),{})
             if retained.get('image'): actual_source=Path(retained['image'])
         if name in session.drafts: forced=True
-        if args.resume and not forced and not session.pending(index):
+        if (args.resume or record.get('status')=='capture_failed') and not forced and not session.pending(index):
             unchanged = actual_source.exists() and (not record.get('source_sha256') or fingerprint(actual_source) == record['source_sha256'])
             if unchanged and (record['status'] not in ('ok','existing') or target.exists()):
                 session.index += 1
@@ -802,7 +794,12 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
                         forced = True
                         continue
                     if reviewed is None:
-                        if decision == 'pause':
+                        if decision=='capture_failed':
+                            reason=getattr(workspace,'failure_reason','其他 / Other')
+                            if capture_failures is None:capture_failures=perform(CaptureFailures,destination)
+                            capture_archive=perform(capture_failures.reject,actual_source,name,digest,reason)
+                            status,detail='capture_failed',reason+'; '+str(capture_archive.relative_to(destination))
+                        elif decision == 'pause':
                             status, detail = 'paused', 'Batch paused; the current selection is retained.'
                         elif workspace.aborted:
                             status, detail = "cancelled", "Batch stopped; remaining photos were not processed."
@@ -818,7 +815,7 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
                             session.data['fixed_coordinates'] = confirmed_template
                             session.persist()
                             fixed_template = confirmed_template
-                if status not in ("skipped", "cancelled", "paused"):
+                if status not in ("skipped", "cancelled", "paused",'capture_failed'):
                     if corners is None:
                         raise ValueError("No screen rectangle detected. Retry RESULT_ROOT --retry-failed.")
                     if cropped is None:
@@ -828,6 +825,8 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
                     detail=perform(save_crop_result,image,corners,cropped,target,destination,relative,
                         actual_source,args,labels,digest,needs_review,modified,model_version,session.options)
                     status='ok'
+                    if capture_failures is not None:
+                        perform(capture_failures.resolved,actual_source,digest)
                     if args.fixed and not needs_review and hasattr(workspace, 'show_fixed_result'):
                         workspace.show_fixed_result(image, corners, cropped)
         except Exception as exc:
@@ -850,6 +849,8 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
                 detail += f"; could not remove failure copy: {exc}"
         print(f"[{index+1}/{len(files)}] {status}: {relative} {detail}", flush=True)
         extra = dict(saved=target.exists())
+        if capture_archive is not None:
+            extra.update(capture_archive=str(capture_archive.relative_to(destination)),capture_reason=reason)
         if digest: extra['source_sha256']=digest
         if status == 'ok' and corners is not None:
             extra.update(quad=corners.astype(float).tolist(),manual_modified=modified)

@@ -19,6 +19,7 @@ crop_ui.py
 review_pipeline.py
 batch_state.py
 batch_status.py
+capture_failures.py
 train_screen_model.py
 screen_crop_model.json
 screen_crop_forest.xml.gz
@@ -49,6 +50,7 @@ tests/test_release.py
 tests/test_startup.py
 tests/test_ui.py
 tests/test_pipeline.py
+tests/test_capture_failures.py
 tests/test_batch_state.py
 tests/test_fixed.py
 tests/test_progress.py

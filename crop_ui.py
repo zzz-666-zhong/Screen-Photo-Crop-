@@ -239,6 +239,7 @@ class CropWorkspace:
         style.map('TButton',background=[('active','#e9edff')],foreground=[('disabled','#9aa5b5')])
         style.configure('Stage.TLabel',background='#e7edff',foreground='#315bdb',padding=(12,7),font=('Microsoft YaHei UI',9,'bold'))
         style.configure('Complete.Stage.TLabel',background='#e2f6eb',foreground='#16734a')
+        style.configure('Reject.TButton',foreground='#b43f49',background='#fff0f1')
         style.configure('Header.TLabel',background='white',foreground=self.MUTED,font=('Microsoft YaHei UI',9))
         style.configure('Title.TLabel',background='white')
         style.configure("View.TButton", font=("Microsoft YaHei UI", 9), padding=(6, 4))
@@ -403,6 +404,15 @@ class CropWorkspace:
         self.resume_button=ttk.Button(batchbar,text='继续 / Resume',command=self.resume_last)
         self.resume_button.pack(side='left')
         ttk.Button(batchbar,text='导出确认标签 / Export labels',command=self.export_labels).pack(side='right')
+        quality=ttk.Frame(self.editor)
+        quality.pack(fill='x',pady=(2,4))
+        ttk.Label(quality,text='拍摄质量 / Quality',style='Hint.TLabel').pack(side='left',padx=(0,8))
+        self.capture_reason=tk.StringVar(value='严重模糊 / Blur')
+        ttk.Combobox(quality,textvariable=self.capture_reason,state='readonly',width=18,
+                     values=('严重模糊 / Blur','反光遮挡 / Glare','目标缺失 / Missing','未拍完整 / Cut off','其他 / Other')).pack(side='left')
+        self.capture_button=ttk.Button(quality,text='拍摄失败 / Reject',style='Reject.TButton',command=self.reject_capture)
+        self.capture_button.pack(side='left',padx=8)
+        ttk.Label(quality,text='归档原图并记录原因 / Archive original & reason',style='Hint.TLabel').pack(side='left')
         self.gallery=self.tk.Canvas(self.editor,height=90,bg=self.BG,highlightthickness=0)
         self.gallery.pack(fill='x')
         gallery_scroll=ttk.Scrollbar(self.editor,orient='horizontal',command=self._gallery_scroll)
@@ -425,7 +435,7 @@ class CropWorkspace:
         controls.columnconfigure(0,weight=1)
         self.picture_filter=tk.StringVar(value='全部 / All')
         self.picture_filter_box=ttk.Combobox(controls,textvariable=self.picture_filter,state='readonly',
-            values=('全部 / All','未裁剪 / No crop','已裁剪 / Cropped','待处理 / Pending','已跳过 / Skipped','失败 / Error'))
+            values=('全部 / All','未裁剪 / No crop','已裁剪 / Cropped','待处理 / Pending','已跳过 / Skipped','失败 / Error','拍摄失败 / Rejected'))
         self.picture_filter_box.grid(row=0,column=0,sticky='ew')
         self.picture_filter_box.bind('<<ComboboxSelected>>',lambda event:self.rebuild_picture_list())
         ttk.Button(controls,text='刷新',style='View.TButton',command=self.refresh_picture_list).grid(row=0,column=1,padx=(4,0))
@@ -441,7 +451,7 @@ class CropWorkspace:
         self.picture_list.configure(yscrollcommand=scrollbar.set)
         for state,color in (('saved','#178562'),('saved_draft','#4f46e5'),('draft','#4f46e5'),
                             ('error','#bd4141'),('saved_error','#bd4141'),('skipped','#ab7c24'),
-                            ('saved_skipped','#ab7c24'),('missing','#bd4141'),('pending','#69758a')):
+                            ('saved_skipped','#ab7c24'),('capture_failed','#bd4141'),('saved_capture_failed','#bd4141'),('missing','#bd4141'),('pending','#69758a')):
             self.picture_list.tag_configure(state,foreground=color)
         self.picture_list.bind('<Double-1>',self._picture_list_click)
 
@@ -453,6 +463,7 @@ class CropWorkspace:
 
     def update_workflow_hint(self):
         messages={
+            'review':'优先识别图片边缘；未找到边界时参考细黑框，按 Enter 逐张确认。 / Picture edges first; thin frames as fallback. Enter to confirm.',
             'fixed':'固定坐标：首张 Enter 确认后自动导出；原图尺寸和目标位置须一致。 / Fixed: confirm once; same size and target position required.',
             'black_review':'识别中间图片的细黑框；检查、调整四角，按 Enter 确认后才保存。 / Detect the picture frame; adjust corners, then Enter to confirm each crop.'}
         self.workflow_hint.set(messages.get(self.workflow.get(),
@@ -528,7 +539,7 @@ class CropWorkspace:
             self.settings_button.configure(state="normal")
             self._disable_actions()
             word = '暂停' if self.paused else '停止' if self.aborted else '完成'
-            self.status.set(f"本批已{word} / Batch {'paused' if self.paused else 'stopped' if self.aborted else 'complete'} · 保存 {self.stats['ok']} · 跳过 {self.stats['skipped']} · 错误 {self.stats['error']}")
+            self.status.set(f"本批已{word} / Batch {'paused' if self.paused else 'stopped' if self.aborted else 'complete'} · 保存 {self.stats['ok']} · 拍摄失败 {self.stats.get('capture_failed',0)} · 跳过 {self.stats['skipped']} · 错误 {self.stats['error']}")
             self.previous_button.configure(state='normal' if self.current_index>0 and not args.fixed else 'disabled')
             self.resume_button.configure(state='normal' if self.session and self.session.first_pending()<len(self.session.files) else 'disabled')
             self.render_gallery()
@@ -590,7 +601,7 @@ class CropWorkspace:
         if not args.fixed:
             for index in range(self.current_index+1,len(self.session.files)):
                 name=self.session.names[index]
-                if args.resume and not self.session.pending(index):continue
+                if not self.session.pending(index):continue
                 if name in self.saved_crop_names and not args.overwrite:continue
                 try:self.pipeline.request(self.session.files[index])
                 except OSError:pass
@@ -635,6 +646,7 @@ class CropWorkspace:
         self.thumb_jobs.clear()
         self.refresh_picture_list()
         self.stats=dict(ok=len(self.saved_crop_names),existing=0,
+                        capture_failed=sum(r.get('status')=='capture_failed' for r in session.records.values()),
                         skipped=sum(r.get('status')=='skipped' for r in session.records.values()),
                         error=sum(r.get('status')=='error' for r in session.records.values()))
 
@@ -672,6 +684,12 @@ class CropWorkspace:
 
     def selection_metadata(self):
         return dict(manual_modified=self.selection.manual_modified)
+
+    def reject_capture(self):
+        if not self.busy or self.processing or self.selection is None or self.action.get()!='pending':return
+        self.failure_reason=self.capture_reason.get()
+        self.batch_decision='capture_failed'
+        self._decide('capture_failed')
 
     def checkpoint_selection(self):
         if (getattr(self,'session',None) is not None and self.selection is not None
@@ -761,13 +779,13 @@ class CropWorkspace:
     def picture_filter_key(self):
         return {'未裁剪 / No crop':'uncropped','已裁剪 / Cropped':'cropped',
                 '待处理 / Pending':'pending','已跳过 / Skipped':'skipped',
-                '失败 / Error':'error'}.get(self.picture_filter.get(),'all')
+                '失败 / Error':'error','拍摄失败 / Rejected':'capture_failed'}.get(self.picture_filter.get(),'all')
 
     def picture_values(self,index):
         state=image_state(self.session,index,self.saved_crop_names)
         labels={'saved':'已裁 Done','saved_draft':'已裁·草稿','draft':'草稿 Draft',
                 'error':'失败 Error','saved_error':'失败·旧图','skipped':'跳过 Skip',
-                'saved_skipped':'跳过·旧图','missing':'结果缺失','pending':'未裁 Wait'}
+                'saved_skipped':'跳过·旧图','capture_failed':'拍摄失败','saved_capture_failed':'拍摄失败·旧图','missing':'结果缺失','pending':'未裁 Wait'}
         return state,(labels[state],f'{index+1} · {self.session.names[index]}')
 
     def update_picture_summary(self):
@@ -777,7 +795,8 @@ class CropWorkspace:
         self.picture_summary.set(
             f"已裁 Cropped {summary['cropped']}/{total}\n"
             f"未裁 No crop {summary['uncropped']}\n"
-            f"草稿 {summary['drafts']} · 跳过 {summary['skipped']} · 失败 {summary['errors']}\n"
+            f"草稿 {summary['drafts']} · 跳过 {summary['skipped']} · 错误 {summary['errors']}\n"
+            f"拍摄失败 Rejected {summary['capture_failed']}\n"
             f"处理 Processed {summary['processed']}/{total}")
         self.progress.configure(value=summary['cropped']/max(1,total)*100)
 
@@ -834,7 +853,7 @@ class CropWorkspace:
         canvas.delete('all');self.thumb_photos=[]
         first=max(0,int(canvas.canvasx(0)//112)-1)
         last=min(count,int(canvas.canvasx(max(1,canvas.winfo_width()))//112)+2)
-        colors={'ok':'#178562','existing':'#178562','skipped':'#ab7c24','error':'#bd4141','paused':self.ACCENT}
+        colors={'ok':'#178562','existing':'#178562','skipped':'#ab7c24','error':'#bd4141','capture_failed':'#bd4141','paused':self.ACCENT}
         for index in range(first,last):
             name=self.session.names[index];record=self.session.records.get(name,{})
             path=self.session.destination/record['output'] if record.get('saved') or record.get('status') in ('ok','existing') else self.session.files[index]
@@ -910,6 +929,7 @@ class CropWorkspace:
         self.stage.set('请确认 / Review')
         self._disable_actions()
         self.skip_button.configure(state="normal")
+        self.capture_button.configure(state='normal')
         self.stop_button.configure(state="normal")
         self.pause_button.configure(state='normal')
         self.previous_button.configure(state='normal' if self.current_index>0 and not args.fixed else 'disabled')
@@ -999,7 +1019,7 @@ class CropWorkspace:
             self.status.set('未找到可信边界，可放大后手动选四角 / No reliable boundary; zoom in and select corners manually')
 
     def _disable_actions(self):
-        for button in (self.save_button,self.reset_button,self.detect_button,self.undo_button,self.skip_button,self.stop_button,
+        for button in (self.save_button,self.reset_button,self.detect_button,self.undo_button,self.skip_button,self.capture_button,self.stop_button,
                        self.previous_button,self.pause_button,self.resume_button):
             button.configure(state="disabled")
 
@@ -1010,6 +1030,7 @@ class CropWorkspace:
         self.save_button.configure(state="normal" if ready else "disabled")
         self.reset_button.configure(state="normal")
         self.detect_button.configure(state="normal")
+        self.capture_button.configure(state='normal')
         self.undo_button.configure(state="normal" if self.selection.points else "disabled")
         self.preview_detail.set(f"{preview.shape[1]} × {preview.shape[0]} px · 尚未保存 / Not saved" if ready else "等待有效四角 / Waiting for valid corners")
         ready_message = ("四角确认后按 Enter：后续按相同坐标自动导出，无需逐张审核 / Enter: confirm corners and export the rest without review"
@@ -1260,6 +1281,8 @@ class CropWorkspace:
         self.render_gallery()
         if status=="ok":
             self.preview_detail.set(f"{detail} px · 已保存 / Saved")
+        elif status=='capture_failed':
+            self.preview_detail.set('拍摄失败 · 原图已归档 / Rejected · Source archived')
         if status not in ('paused','cancelled'):
             self.selection=None
         self.stage.set('已保存 / Saved' if status=='ok' else '已处理 / Processed')

@@ -26,6 +26,8 @@ def image_state(session,index,saved):
     cropped=name in saved
     if name in session.drafts:
         return 'saved_draft' if cropped else 'draft'
+    if state=='capture_failed':
+        return 'saved_capture_failed' if cropped else 'capture_failed'
     if state=='error':
         return 'saved_error' if cropped else 'error'
     if state=='skipped':
@@ -44,6 +46,7 @@ def matches_filter(session,index,saved,choice):
     if choice=='pending':return session.pending(index)
     if choice=='skipped':return session.records.get(name,{}).get('status')=='skipped'
     if choice=='error':return session.records.get(name,{}).get('status')=='error'
+    if choice=='capture_failed':return session.records.get(name,{}).get('status')=='capture_failed'
     return True
 
 
@@ -54,6 +57,7 @@ def progress_summary(session,saved):
     processed=sum(not session.pending(i) for i in range(total))
     skipped=sum(session.records.get(n,{}).get('status')=='skipped' for n in session.names)
     errors=sum(session.records.get(n,{}).get('status')=='error' for n in session.names)
+    rejected=sum(session.records.get(n,{}).get('status')=='capture_failed' for n in session.names)
     drafts=len(names.intersection(session.drafts))
     return dict(total=total,cropped=cropped,uncropped=total-cropped,processed=processed,
-                skipped=skipped,errors=errors,drafts=drafts)
+                skipped=skipped,errors=errors,drafts=drafts,capture_failed=rejected)
