@@ -45,6 +45,16 @@ Double-click **`启动裁剪.cmd`**, or run the command below. Direct execution 
 
 With no arguments, the startup page lets you choose folders, Review/Black-border review/Manual/Fixed/Retry, and Full picture/Square 1:1. Retry uses the previous result root. Completion stays on the same page; Settings starts another batch.
 
+## 后台准备与最后一张 / Background preparation and the final image
+
+逐张审核当前图片时，下一张的读取、识别和预览会在后台计算，预览下方显示“后台准备下一张”或“下一张已准备”。手动和失败补裁只预读原图，仍等待你选点。预读不会保存裁剪结果或确认训练标签；固定坐标模式仍按已确认坐标导出。
+
+While reviewing an image, background work prepares the next source, detection and preview. The hint below the preview reports readiness. Manual/Retry preload only the source and still wait for your points. Look-ahead does not save outputs or confirm training labels; Fixed continues using the confirmed coordinates.
+
+按 Enter 后进入“正在保存与整理”；最后一张保存和报告写入完成后显示“已完成”。保存中按暂停、结束或关闭，程序会完成当前写入再执行请求。原图和输出沿用原有目录与命名；PNG 保持无损，较低压缩等级可提升速度但可能增大文件。
+
+After Enter, Saving & updating remains visible until writing completes; the last image then transitions to Complete. Pause/Stop/Close during saving waits for the active write. Folder and filename conventions remain the same. PNG is lossless; faster compression may increase file size.
+
 ## 黑边识别 · 手动确认 / Black-border detection with manual confirmation
 
 普通自动识别也可识别文字图片和细黑框。固定坐标模式会识别第一张，确认后仍按固定坐标处理后续图片。手动四角和失败补裁默认等待选点；如需识别，点击 **“识别边界 / Detect”**，检查并调整建议后再保存。识别失败不会清除已有选点。

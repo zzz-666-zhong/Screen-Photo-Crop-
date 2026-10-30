@@ -1,5 +1,12 @@
 # 更新记录 / Changelog
 
+## 0.10.0 — 2026-10-30
+
+- 逐张审核预读下一张的原图、识别四角和预览；缓存仅保留一张后续图片，手动和补裁仅预读原图。 / Prepare one next image, detection and preview during review; Manual/Retry preload only the source.
+- 图片保存、进度与报告写入、缩略图解码移至后台；复用画布图像，降低重复渲染开销。 / Move saving, checkpoints/reports and thumbnail decoding off the UI thread; reuse rendered images.
+- 明确最后一张的保存及完成状态；保存后不再生成旧选区草稿，写入期间的暂停/关闭延后安全执行。 / Show final save/completion states, prevent stale drafts after confirmation, and defer Pause/Close until active writes finish.
+- 调整按钮、状态提示和选中行样式；无损 PNG 使用较低压缩等级加快保存，可能增加文件大小。 / Refresh buttons/status/selection styles; use faster lossless PNG compression, with potentially larger files.
+
 ## 0.9.0 — 2026-10-27
 
 - 普通自动识别支持浅色文字图片和细黑框，优先保留完整白色边缘；固定坐标首张复用此识别。 / General detection handles light text and thin dark frames while preserving white margins; Fixed uses it for the first image.

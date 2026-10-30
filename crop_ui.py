@@ -142,10 +142,10 @@ class ImageNavigation:
 
 
 class CropWorkspace:
-    BG = "#f3f5fa"
+    BG = "#f4f7fc"
     TEXT = "#18243b"
     MUTED = "#69758a"
-    ACCENT = "#4f46e5"
+    ACCENT = "#315bdb"
     TITLE = "拍屏裁剪工作台 / Screen Photo Crop"
 
     def __init__(self, backend, *, preferences_path=None):
@@ -196,11 +196,23 @@ class CropWorkspace:
         self.saved_crop_names = set()
         self.preferences_path = Path(preferences_path) if preferences_path else Path(__file__).with_name('.crop-settings.json')
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="screen-detection")
+        self.io_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='crop-files')
+        self.pipeline = None
+        self.prepared_item = None
+        self.processing = False
+        self.close_requested = False
+        self.thumb_jobs = {}
+        self.thumb_poll = None
+        self.prefetch_poll = None
+        self.checkpoint_tasks=[]
+        self.thumb_executor=ThreadPoolExecutor(max_workers=1,thread_name_prefix='crop-thumbnails')
         self.action = tk.StringVar(master=self.root, value="pending")
         self.status = tk.StringVar(value="选择文件夹和裁剪模式，开始处理 / Choose folders and a mode")
         self.filename = tk.StringVar(value="本地处理 · 原图保留 / Local processing · Originals preserved")
         self.counter = tk.StringVar(value="READY")
         self.mode_badge = tk.StringVar(value="完整图片 / Full picture")
+        self.stage = tk.StringVar(value='就绪 / Ready')
+        self.prefetch_hint = tk.StringVar(value='按 Enter 确认保存 / Enter to confirm')
         self.stats = dict(ok=0, skipped=0, error=0, existing=0)
         self._style()
         self._build()
@@ -222,10 +234,16 @@ class CropWorkspace:
         style.configure("Card.TLabel", background="white")
         style.configure("Hint.TLabel", foreground=self.MUTED, font=("Microsoft YaHei UI", 9))
         style.configure("Title.TLabel", font=("Microsoft YaHei UI", 20, "bold"))
-        style.configure("TButton", font=("Microsoft YaHei UI", 10), padding=(14, 9), relief="flat")
+        style.configure("TButton", font=("Microsoft YaHei UI", 10), padding=(12, 8), relief="flat",
+                        background='white',foreground=self.TEXT,borderwidth=1,bordercolor='#dce3ee')
+        style.map('TButton',background=[('active','#e9edff')],foreground=[('disabled','#9aa5b5')])
+        style.configure('Stage.TLabel',background='#e7edff',foreground='#315bdb',padding=(12,7),font=('Microsoft YaHei UI',9,'bold'))
+        style.configure('Complete.Stage.TLabel',background='#e2f6eb',foreground='#16734a')
+        style.configure('Header.TLabel',background='white',foreground=self.MUTED,font=('Microsoft YaHei UI',9))
+        style.configure('Title.TLabel',background='white')
         style.configure("View.TButton", font=("Microsoft YaHei UI", 9), padding=(6, 4))
         style.configure("Primary.TButton", background=self.ACCENT, foreground="white", borderwidth=0)
-        style.map("Primary.TButton", background=[("disabled", "#c8ccdf"), ("active", "#4338ca")])
+        style.map("Primary.TButton", background=[("disabled", "#c8ccdf"), ("active", "#2449b8")])
         style.configure("TEntry", padding=8, fieldbackground="white", font=("Microsoft YaHei UI", 10))
         style.configure("TRadiobutton", background="white", font=("Microsoft YaHei UI", 10), padding=5)
         style.configure("TCheckbutton", background="white", font=("Microsoft YaHei UI", 9), padding=3)
@@ -234,16 +252,19 @@ class CropWorkspace:
         style.configure('PictureList.Treeview',font=('Microsoft YaHei UI',10),
                         rowheight=max(24,round(25*dpi)),background='white',fieldbackground='white')
         style.configure('PictureList.Treeview.Heading',font=('Microsoft YaHei UI',9,'bold'))
+        style.map('PictureList.Treeview',background=[('selected','#e1e9ff')],foreground=[('selected','#2449b8')])
 
     def _build(self):
         ttk, tk = self.ttk, self.tk
-        header = ttk.Frame(self.root, padding=(24, 10))
+        header = ttk.Frame(self.root, padding=(24, 14),style='Card.TFrame')
         header.pack(fill="x")
         ttk.Label(header, text="Screen Photo Crop", style="Title.TLabel").pack(side="left")
-        ttk.Label(header, text=f"拍屏裁剪工作台   v{self.backend.__version__}", style="Hint.TLabel").pack(side="left", padx=18)
+        ttk.Label(header, text=f"拍屏裁剪工作台   v{self.backend.__version__}", style="Header.TLabel").pack(side="left", padx=18)
         self.settings_button = ttk.Button(header, text="返回设置 / Settings", command=self.show_settings)
         self.settings_button.pack(side="right")
-        self.container = ttk.Frame(self.root, padding=(24, 0, 24, 8))
+        self.stage_label=ttk.Label(header,textvariable=self.stage,style='Stage.TLabel')
+        self.stage_label.pack(side='right',padx=12)
+        self.container = ttk.Frame(self.root, padding=(24, 16, 24, 8))
         self.container.pack(fill="both", expand=True)
         self.settings = ttk.Frame(self.container, style="Card.TFrame", padding=16)
         self.editor = ttk.Frame(self.container)
@@ -355,7 +376,10 @@ class CropWorkspace:
         self.source_canvas.bind("<KeyRelease-space>", lambda e:self._space(False))
         self.source_canvas.bind("<FocusOut>", lambda e:self._space(False))
         self.preview_detail = tk.StringVar(value="等待四角 / Waiting for corners")
-        ttk.Label(self.editor, textvariable=self.preview_detail, style="Hint.TLabel").pack(anchor="e", pady=8)
+        details=ttk.Frame(self.editor)
+        details.pack(fill='x',pady=8)
+        ttk.Label(details,textvariable=self.prefetch_hint,style='Hint.TLabel').pack(side='left')
+        ttk.Label(details,textvariable=self.preview_detail,style='Hint.TLabel').pack(side='right')
         toolbar = ttk.Frame(self.editor)
         toolbar.pack(fill="x", pady=(0,4))
         self.reset_button = ttk.Button(toolbar,text="重新裁剪 / Re-crop (R)",command=self.recrop)
@@ -437,12 +461,15 @@ class CropWorkspace:
     def show_settings(self):
         if self.busy or self.closed:
             return
+        self.stage.set('就绪 / Ready')
+        self.stage_label.configure(style='Stage.TLabel')
         self.editor.pack_forget()
         self.settings.pack(fill="both", expand=True)
         self.progress.configure(value=0)
         self.status.set("失败补裁请选择上次结果目录；其他方式请选择原照片和结果目录。 / Retry uses the previous result folder.")
 
     def _start(self):
+        if getattr(self,'busy',False):return
         source, output = self.source.get().strip(), self.output.get().strip()
         if self.workflow.get() == "retry":
             folder = output or source
@@ -470,6 +497,7 @@ class CropWorkspace:
             self.status.set(f'设置未保存 / Settings not saved · {exc}')
 
     def _run_batch(self,args):
+        self.busy=True
         self.aborted = self.paused = False
         self.stats = dict(ok=0, skipped=0, error=0, existing=0)
         try:
@@ -484,6 +512,7 @@ class CropWorkspace:
             self.status.set('结果目录不可写，请更换目录或从桌面重新启动。 / Output unavailable: choose another folder or relaunch from desktop.')
             from tkinter import messagebox
             messagebox.showerror('无法保存结果 / Cannot save results',str(exc),parent=self.root)
+            self.finish_pipeline()
             return
         except (ValueError, OSError) as exc:
             self.busy = False
@@ -492,6 +521,7 @@ class CropWorkspace:
             self.previous_button.configure(state='normal' if self.session and self.current_index>0 and not args.fixed else 'disabled')
             self.resume_button.configure(state='normal' if self.session and self.session.first_pending()<len(self.session.files) else 'disabled')
             self.status.set(str(exc))
+            self.finish_pipeline()
             return
         if not self.closed:
             self.busy = False
@@ -502,8 +532,89 @@ class CropWorkspace:
             self.previous_button.configure(state='normal' if self.current_index>0 and not args.fixed else 'disabled')
             self.resume_button.configure(state='normal' if self.session and self.session.first_pending()<len(self.session.files) else 'disabled')
             self.render_gallery()
+        self.finish_pipeline()
+        self.prepared_item = None
+        self.selection = None
+        self.stage.set('已暂停 / Paused' if self.paused else '已停止 / Stopped' if self.aborted else '已完成 / Complete')
+        if not self.paused and not self.aborted:
+            self.stage_label.configure(style='Complete.Stage.TLabel')
+            self.save_button.configure(text='本批完成 / Batch complete')
+            self.prefetch_hint.set('本批结束 · 返回设置开始下一批 / Finished · Settings for next batch')
+        if self.close_requested and not self.closed:
+            self.close()
+
+    def finish_pipeline(self):
+        if getattr(self,'pipeline',None) is not None:
+            self.pipeline.close()
+            self.pipeline=None
+        if getattr(self,'prefetch_poll',None) is not None and not self.closed:
+            self.root.after_cancel(self.prefetch_poll)
+            self.prefetch_poll=None
+
+    def wait_for_work(self, future, message):
+        """Wait with Tk events serviced; file work never runs on the UI thread."""
+        self.processing = True
+        self.stage_label.configure(style='Stage.TLabel')
+        self.stage.set(message)
+        self.status.set(message)
+        self._disable_actions()
+        self.pause_button.configure(state='normal')
+        self.stop_button.configure(state='normal')
+        ready=self.tk.BooleanVar(master=self.root,value=False)
+        def poll():
+            if future.done():ready.set(True)
+            else:self.root.after(25,poll)
+        self.root.after(0,poll)
+        try:
+            self.root.wait_variable(ready)
+            return future.result()
+        finally:
+            self.processing = False
+
+    def run_background(self, function, *args, **kwargs):
+        result=self.wait_for_work(self.io_executor.submit(function,*args,**kwargs),
+                                 '正在保存与整理 / Saving & updating…')
+        # Checkpoint snapshots use this same serial worker, so all earlier
+        # writes have finished here and their failures must remain visible.
+        pending,self.checkpoint_tasks=self.checkpoint_tasks,[]
+        for future in pending:future.result()
+        return result
+
+    def prepare_image(self, path, args):
+        if self.prefetch_poll is not None:
+            self.root.after_cancel(self.prefetch_poll)
+            self.prefetch_poll=None
+        result=self.wait_for_work(self.pipeline.take(path),'正在准备图片 / Preparing image…')
+        self.prepared_item=result
+        # Only one subsequent image is retained. No output/label is written.
+        if not args.fixed:
+            for index in range(self.current_index+1,len(self.session.files)):
+                name=self.session.names[index]
+                if args.resume and not self.session.pending(index):continue
+                if name in self.saved_crop_names and not args.overwrite:continue
+                try:self.pipeline.request(self.session.files[index])
+                except OSError:pass
+                break
+        self.monitor_prefetch()
+        return result
+
+    def monitor_prefetch(self):
+        self.prefetch_poll=None
+        entry=self.pipeline.entry if self.pipeline is not None else None
+        if self.closed:return
+        if entry is None:
+            self.prefetch_hint.set('无后续预读 / No next image')
+        elif entry[1].done():
+            self.prefetch_hint.set('下一张已准备 / Next image ready' if entry[1].exception() is None else
+                                   '下一张需检查 / Check next image')
+        else:
+            self.prefetch_hint.set('后台准备下一张… / Preparing next image…')
+            self.prefetch_poll=self.root.after(100,self.monitor_prefetch)
 
     def begin_batch(self, session, labels, args):
+        from review_pipeline import ReviewPipeline
+        if self.pipeline is not None:self.pipeline.close()
+        self.pipeline=ReviewPipeline(self.backend,args)
         self.session,self.labels,self.batch_args=session,labels,args
         self.busy=True
         self.settings.pack_forget()
@@ -520,7 +631,12 @@ class CropWorkspace:
         self.trim.set(not args.no_trim_black)
         self.remember_settings()
         self.thumb_cache.clear()
+        for future in self.thumb_jobs.values():future.cancel()
+        self.thumb_jobs.clear()
         self.refresh_picture_list()
+        self.stats=dict(ok=len(self.saved_crop_names),existing=0,
+                        skipped=sum(r.get('status')=='skipped' for r in session.records.values()),
+                        error=sum(r.get('status')=='error' for r in session.records.values()))
 
     def prepare_item(self,index):
         self.current_index=index
@@ -558,9 +674,18 @@ class CropWorkspace:
         return dict(manual_modified=self.selection.manual_modified)
 
     def checkpoint_selection(self):
-        if getattr(self,'session',None) is not None and self.selection is not None:
-            self.session.draft(self.selection.points,modified=self.selection.manual_modified,
-                               automatic=self.automatic_quad,source_sha256=self.source_digest)
+        if (getattr(self,'session',None) is not None and self.selection is not None
+                and not getattr(self,'processing',False) and self.action.get()=='pending'):
+            import copy
+            from batch_state import timestamp
+            session=self.session
+            if session.index>=len(session.names):return
+            session.drafts[session.names[session.index]]=dict(
+                points=[list(map(float,p)) for p in self.selection.points],
+                manual_modified=self.selection.manual_modified,automatic_quad=self.automatic_quad,
+                source_sha256=self.source_digest)
+            session.data.update(cursor=session.index,cursor_file=session.names[session.index],updated_at=timestamp())
+            self.checkpoint_tasks.append(self.io_executor.submit(atomic_json,session.path,copy.deepcopy(session.data)))
             if hasattr(self,'picture_list'):
                 self.update_picture_row(self.current_index)
 
@@ -583,6 +708,10 @@ class CropWorkspace:
 
     def pause(self):
         if self.busy:
+            if self.processing:
+                self.paused=True
+                self.status.set('当前操作结束后暂停 / Pausing after the current operation…')
+                return
             self.checkpoint_selection()
             self.paused=True
             self.batch_decision='pause'
@@ -592,6 +721,7 @@ class CropWorkspace:
         if self.current_index>0:self.jump_to(self.current_index-1)
 
     def jump_to(self,index):
+        if getattr(self,'processing',False):return
         if self.batch_args is not None and self.batch_args.fixed:
             self.status.set('固定坐标批次使用同一组四角；修改坐标请返回设置并开始新批次。 / To change fixed corners, start a new batch in Settings.')
             return
@@ -712,23 +842,45 @@ class CropWorkspace:
             color=self.ACCENT if index==self.current_index else colors.get(record.get('status'),'#b8c2d2')
             canvas.create_rectangle(x,2,x+104,88,outline=color,width=2,fill='white')
             try:
-                key=(str(path),path.stat().st_mtime_ns)
-                if key not in self.thumb_cache:
-                    with Image.open(path) as opened:
-                        opened.draft('RGB',(100,64))
-                        thumb=ImageOps.exif_transpose(opened).convert('RGB')
-                        thumb.thumbnail((96,56),Image.Resampling.LANCZOS)
-                    self.thumb_cache[key]=ImageTk.PhotoImage(thumb,master=self.root)
-                    if len(self.thumb_cache)>48:self.thumb_cache.popitem(last=False)
-                photo=self.thumb_cache[key];self.thumb_cache.move_to_end(key)
-                self.thumb_photos.append(photo)
-                canvas.create_image(x+52,33,image=photo)
+                key=str(path)
+                if key not in self.thumb_cache and key not in self.thumb_jobs and len(self.thumb_jobs)<16:
+                    self.thumb_jobs[key]=self.thumb_executor.submit(self.read_thumbnail,path)
+                if key in self.thumb_cache and self.thumb_cache[key] is not None:
+                    photo=self.thumb_cache[key];self.thumb_cache.move_to_end(key)
+                    self.thumb_photos.append(photo)
+                    canvas.create_image(x+52,33,image=photo)
+                else:
+                    canvas.create_text(x+52,33,text='· · ·',fill=self.MUTED)
             except (OSError,ValueError,Image.DecompressionBombError):
                 canvas.create_text(x+52,32,text='待处理 / Pending',fill=self.MUTED,font=('Microsoft YaHei UI',8))
             short=Path(name).name
             if len(short)>13:short=short[:10]+'…'
             label=f'{index+1} · {short}'
             canvas.create_text(x+52,73,text=label,fill=color,font=('Microsoft YaHei UI',8))
+        if self.thumb_jobs and self.thumb_poll is None:
+            self.thumb_poll=self.root.after(50,self.poll_thumbnails)
+
+    @staticmethod
+    def read_thumbnail(path):
+        with Image.open(path) as opened:
+            opened.draft('RGB',(100,64))
+            thumb=ImageOps.exif_transpose(opened).convert('RGB')
+            thumb.thumbnail((96,56),Image.Resampling.LANCZOS)
+        return thumb
+
+    def poll_thumbnails(self):
+        self.thumb_poll=None
+        if self.closed:return
+        changed=False
+        for key,future in list(self.thumb_jobs.items()):
+            if not future.done():continue
+            self.thumb_jobs.pop(key)
+            try:self.thumb_cache[key]=ImageTk.PhotoImage(future.result(),master=self.root)
+            except (OSError,ValueError,Image.DecompressionBombError):self.thumb_cache[key]=None
+            changed=True
+        while len(self.thumb_cache)>48:self.thumb_cache.popitem(last=False)
+        if changed:self.render_gallery()
+        elif self.thumb_jobs:self.thumb_poll=self.root.after(50,self.poll_thumbnails)
 
     def launch(self):
         self.root.mainloop()
@@ -755,6 +907,7 @@ class CropWorkspace:
         self.preview_pil = None
         self.preview_detail.set('等待当前图片四角 / Waiting for current corners')
         self.action.set("pending")
+        self.stage.set('请确认 / Review')
         self._disable_actions()
         self.skip_button.configure(state="normal")
         self.stop_button.configure(state="normal")
@@ -776,6 +929,14 @@ class CropWorkspace:
             self.selection.set_corners(proposed)
             self.selection.manual_modified=self.restored_modified
             self._selection_changed()
+        elif auto_detect and self.prepared_item is not None:
+            prepared=self.prepared_item
+            if prepared.corners is not None:
+                self.selection.points=[tuple(map(float,p)) for p in prepared.corners]
+                self.selection.preview=prepared.preview
+                self.automatic_quad=prepared.corners.astype(float).tolist()
+            self._selection_changed()
+            if prepared.error:self.status.set('请手动选四角 / Select corners manually · '+prepared.error)
         elif auto_detect:
             self.future = self.executor.submit(self.detect_review_corners, image, args)
             self._poll_detection()
@@ -802,7 +963,7 @@ class CropWorkspace:
 
     def detect_current(self):
         """Offer detection in manual/retry too; preserve existing points on failure."""
-        if self.selection is None or self.future is not None or not self.busy:
+        if self.selection is None or self.future is not None or not self.busy or getattr(self,'processing',False):
             return
         self.drag_index = self.reselect_point = None
         self._disable_actions()
@@ -870,10 +1031,14 @@ class CropWorkspace:
         self.viewport = self.navigation.viewport(self.source_pil.size, canvas_size)
         view = self.viewport
         # Render only the visible canvas, not a potentially enormous zoomed bitmap.
-        visible = self.source_pil.transform(canvas_size, Image.Transform.AFFINE,
-                    (1/view.scale,0,-view.x/view.scale,0,1/view.scale,-view.y/view.scale),
-                    resample=Image.Resampling.BICUBIC,fillcolor=(17,28,48))
-        self.source_photo = ImageTk.PhotoImage(visible,master=self.root)
+        key=(id(self.source_pil),canvas_size,view.scale,view.x,view.y)
+        if key!=getattr(self,'source_render_key',None):
+            visible = self.source_pil.transform(canvas_size, Image.Transform.AFFINE,
+                        (1/view.scale,0,-view.x/view.scale,0,1/view.scale,-view.y/view.scale),
+                        resample=Image.Resampling.BICUBIC,fillcolor=(17,28,48))
+            self.source_photo = ImageTk.PhotoImage(visible,master=self.root)
+            self.rendered_source=self.source_pil
+            self.source_render_key=key
         canvas.create_image(0,0,image=self.source_photo,anchor="nw")
         self.zoom_label.set(f"{self.navigation.zoom:.1f}×")
         corners = self.selection.points if self.selection is not None else (getattr(self,'fixed_outline',None) or [])
@@ -893,13 +1058,17 @@ class CropWorkspace:
             canvas.create_text(w/2,h/2,text="裁剪结果将在这里显示\nCrop preview appears here",fill=self.MUTED,justify="center",font=("Microsoft YaHei UI",12))
             return
         view = ImageViewport.fit(self.preview_pil.size,(w,h))
-        self.preview_photo = ImageTk.PhotoImage(self.preview_pil.resize((view.width,view.height),Image.Resampling.LANCZOS),master=self.root)
+        key=(id(self.preview_pil),view.width,view.height)
+        if key!=getattr(self,'preview_render_key',None):
+            self.preview_photo = ImageTk.PhotoImage(self.preview_pil.resize((view.width,view.height),Image.Resampling.LANCZOS),master=self.root)
+            self.rendered_preview=self.preview_pil
+            self.preview_render_key=key
         canvas.create_image(view.x,view.y,image=self.preview_photo,anchor="nw")
 
     def _click(self, event):
         if self.space_down:
             return self._pan_start(event)
-        if self.selection is None or self.future is not None or not self.busy:
+        if self.selection is None or self.future is not None or not self.busy or getattr(self,'processing',False):
             return
         point = self.viewport.to_image(event.x,event.y)
         if point is None:
@@ -1018,7 +1187,7 @@ class CropWorkspace:
         return self._shortcut(event, lambda:self._decide("save"))
 
     def recrop(self):
-        if self.selection is None or self.future is not None or not self.busy:
+        if self.selection is None or self.future is not None or not self.busy or getattr(self,'processing',False):
             return
         self.drag_index = self.reselect_point = None
         self.selection.reset()
@@ -1026,21 +1195,26 @@ class CropWorkspace:
         self.source_canvas.focus_set()
 
     def undo(self):
-        if self.selection is not None and self.busy and self.future is None:
+        if self.selection is not None and self.busy and self.future is None and not getattr(self,'processing',False):
             self.drag_index = self.reselect_point = None
             self.selection.undo()
             self._selection_changed()
 
     def _decide(self, action):
-        if not self.busy or self.action.get() != "pending":
+        if not self.busy or self.action.get() != "pending" or getattr(self,'processing',False):
             return
-        if action=="save" and (self.future is not None or self.drag_index is not None or self.selection.accept() is None):
+        if action=="save" and (self.future is not None or self.drag_index is not None
+                               or self.selection is None or self.selection.preview is None):
             return
         self._disable_actions()
         self.action.set(action)
 
     def stop(self):
         if self.busy:
+            if self.processing:
+                self.aborted=True
+                self.status.set('当前操作结束后停止 / Stopping after the current operation…')
+                return
             self.checkpoint_selection()
             self.aborted = True
             self._decide("abort")
@@ -1076,6 +1250,8 @@ class CropWorkspace:
         self.stats={key:sum(row.get('status')==key for row in self.session.records.values()) for key in self.stats}
         self.stats['ok']=sum(row.get('saved',row.get('status')=='ok') for row in self.session.records.values())
         name=self.session.names[self.current_index]
+        output=self.session.records.get(name,{}).get('output')
+        if output:self.thumb_cache.pop(str(self.session.destination/output),None)
         if self.session.records.get(name,{}).get('saved'):
             self.saved_crop_names.add(name)
         else:
@@ -1084,21 +1260,34 @@ class CropWorkspace:
         self.render_gallery()
         if status=="ok":
             self.preview_detail.set(f"{detail} px · 已保存 / Saved")
+        if status not in ('paused','cancelled'):
+            self.selection=None
+        self.stage.set('已保存 / Saved' if status=='ok' else '已处理 / Processed')
 
     def close(self):
         if self.closed:
+            return
+        if self.processing:
+            self.close_requested=True
+            self.aborted=True
+            self.status.set('保存完当前操作后关闭 / Closing after the current operation…')
             return
         self.remember_settings()
         if self.busy:
             try:
                 self.checkpoint_selection()
-                if self.session is not None:self.session.persist('stopped')
+                if self.session is not None:self.run_background(self.session.persist,'stopped')
             except OSError as exc:
                 print(f'Could not save the closing checkpoint: {exc}',file=sys.stderr)
         self.closed = self.aborted = True
         if self.poll_id is not None:
             self.root.after_cancel(self.poll_id)
+        if self.thumb_poll is not None:self.root.after_cancel(self.thumb_poll)
+        if self.prefetch_poll is not None:self.root.after_cancel(self.prefetch_poll)
         if self.future is not None:
             self.future.cancel()
         self.executor.shutdown(wait=False,cancel_futures=True)
+        self.io_executor.shutdown(wait=False,cancel_futures=True)
+        self.thumb_executor.shutdown(wait=False,cancel_futures=True)
+        if self.pipeline is not None:self.pipeline.close()
         self.root.destroy()

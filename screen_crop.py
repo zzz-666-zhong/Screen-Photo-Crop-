@@ -27,7 +27,7 @@ except ImportError as exc:
     ) from exc
 
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 SUCCESS_FOLDER = "裁剪成功"
@@ -624,7 +624,39 @@ def run(args: argparse.Namespace, *, workspace=None) -> int:
             workspace.close()
 
 
+def save_crop_result(image, corners, cropped, target, destination, relative, actual_source,
+                     args, labels, digest, needs_review, modified, model_version, options):
+    """Write one lossless crop and its labels; suitable for a file worker."""
+    from batch_state import label_source
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(target.name + '.tmp')
+    try:
+        Image.fromarray(cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB)).save(
+            temporary, format='PNG', compress_level=1)
+        temporary.replace(target)
+    finally:
+        temporary.unlink(missing_ok=True)
+    detail=f'{cropped.shape[1]}x{cropped.shape[0]}'
+    original=label_source(actual_source,destination,relative,args.retry_failed,digest)
+    labels.save(original,corners.astype(float).tolist(),source_sha256=digest,
+        image_size=(image.shape[1],image.shape[0]),output=str(target.relative_to(destination)),
+        confirmed=needs_review,modified=modified,version=__version__,model_version=model_version,
+        square=args.square,options=options)
+    if args.debug:
+        debug=image.copy()
+        cv2.polylines(debug,[np.round(corners).astype(np.int32)],True,(0,255,0),max(2,round(max(image.shape[:2])/600)))
+        debug_path=destination/'_debug'/target.relative_to(destination)
+        debug_path.parent.mkdir(parents=True,exist_ok=True)
+        try:Image.fromarray(cv2.cvtColor(debug,cv2.COLOR_BGR2RGB)).save(debug_path,compress_level=1)
+        except OSError as exc:detail+=f'; debug preview unavailable: {exc}'
+    return detail
+
+
 def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
+    def perform(function,*items,**kwargs):
+        if workspace is not None and hasattr(workspace,'run_background'):
+            return workspace.run_background(function,*items,**kwargs)
+        return function(*items,**kwargs)
     if args.retry_failed:
         if args.output_dir is not None:
             raise ValueError("Use: python screen_crop.py RESULT_ROOT --retry-failed")
@@ -695,6 +727,9 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
     if args.black_review:
         model_version = dict(detector='black-border-v2',fallback='conditional-general')
     while True:
+        if workspace is not None and (getattr(workspace,'aborted',False) or getattr(workspace,'paused',False)):
+            perform(session.persist,'paused' if getattr(workspace,'paused',False) else 'stopped')
+            break
         if session.index >= len(files):
             session.index = session.first_pending()
             if session.index >= len(files): break
@@ -736,9 +771,14 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
             if target.exists() and not args.overwrite and not forced:
                 status, detail = "existing", "Output already exists; use --overwrite to replace."
             else:
-                digest = fingerprint(actual_source)
-                image = load_image(actual_source)
                 needs_review = interactive and (not args.fixed or fixed_template is None)
+                if needs_review and workspace is not None and hasattr(workspace,'prepare_image'):
+                    prepared=workspace.prepare_image(actual_source,args)
+                    digest,image=prepared.digest,prepared.image
+                    if getattr(workspace,'aborted',False) or getattr(workspace,'paused',False):
+                        continue
+                else:
+                    digest,image=perform(lambda:(fingerprint(actual_source),load_image(actual_source)))
                 if args.fixed and fixed_template is not None:
                     corners = fixed_corners(fixed_template, (image.shape[1], image.shape[0]))
                 else:
@@ -782,34 +822,14 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
                     if corners is None:
                         raise ValueError("No screen rectangle detected. Retry RESULT_ROOT --retry-failed.")
                     if cropped is None:
-                        cropped = finish_crop(rectify(image, corners, square=args.square), args)
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    temporary = target.with_name(target.name + ".tmp")
-                    try:
-                        Image.fromarray(cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB)).save(temporary, format="PNG")
-                        temporary.replace(target)
-                    finally:
-                        temporary.unlink(missing_ok=True)
-                    status, detail = "ok", f"{cropped.shape[1]}x{cropped.shape[0]}"
+                        cropped = perform(lambda:finish_crop(rectify(image, corners, square=args.square), args))
                     information = workspace.selection_metadata() if needs_review and hasattr(workspace,'selection_metadata') else {}
                     modified = information.get('manual_modified',bool(args.manual or args.retry_failed))
-                    original = label_source(actual_source,destination,relative,args.retry_failed,digest)
-                    labels.save(original,corners.astype(float).tolist(),source_sha256=digest,
-                        image_size=(image.shape[1],image.shape[0]),output=str(target.relative_to(destination)),
-                        confirmed=needs_review,modified=modified,version=__version__,model_version=model_version,
-                        square=args.square,options=session.options)
+                    detail=perform(save_crop_result,image,corners,cropped,target,destination,relative,
+                        actual_source,args,labels,digest,needs_review,modified,model_version,session.options)
+                    status='ok'
                     if args.fixed and not needs_review and hasattr(workspace, 'show_fixed_result'):
                         workspace.show_fixed_result(image, corners, cropped)
-                    if args.debug:
-                        debug = image.copy()
-                        cv2.polylines(debug, [np.round(corners).astype(np.int32)], True, (0, 255, 0),
-                                      max(2, round(max(image.shape[:2]) / 600)))
-                        debug_path = destination / "_debug" / target.relative_to(destination)
-                        debug_path.parent.mkdir(parents=True, exist_ok=True)
-                        try:
-                            Image.fromarray(cv2.cvtColor(debug, cv2.COLOR_BGR2RGB)).save(debug_path)
-                        except OSError as exc:
-                            detail += f"; debug preview unavailable: {exc}"
         except Exception as exc:
             status, detail = "error", str(exc)
         # Revisiting a saved crop never discards it merely because edits were skipped.
@@ -833,17 +853,18 @@ def run_batch(args: argparse.Namespace, *, workspace=None) -> int:
         if digest: extra['source_sha256']=digest
         if status == 'ok' and corners is not None:
             extra.update(quad=corners.astype(float).tolist(),manual_modified=modified)
-        session.record(index,status,str(target.relative_to(destination)),detail,**extra)
+        perform(session.record,index,status,str(target.relative_to(destination)),detail,**extra)
         if workspace is not None:
             workspace.record(status, str(relative), detail)
         if status in ('cancelled','paused'):
-            session.persist('paused' if status == 'paused' else 'stopped')
+            perform(session.persist,'paused' if status == 'paused' else 'stopped')
             break
         session.index += 1
         forced = False
-        session.persist()
-    if session.index >= len(files): session.persist('complete')
-    session.write_report()
+        perform(session.persist)
+    if session.index >= len(files) and not (workspace is not None and (getattr(workspace,'aborted',False) or getattr(workspace,'paused',False))):
+        perform(session.persist,'complete')
+    perform(session.write_report)
     if args.export_labels:
         print(f'Exported {labels.export(args.export_labels)} reviewed labels to {args.export_labels}')
     report_path = destination / ("manual_crop_report.csv" if args.retry_failed else "crop_report.csv")

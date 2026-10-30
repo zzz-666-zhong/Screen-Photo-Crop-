@@ -4,7 +4,11 @@
 
 Extract complete pictures from photographed screens with automatic corner detection, perspective correction, and dark-content preservation. Includes a pretrained model, a single-page preview, Enter-to-save review, manual re-cropping, and square mode.
 
-**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.9.0**
+**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.10.0**
+
+逐张确认时，程序会在后台准备下一张的原图、边界和裁剪预览；预览下方显示准备状态。图片与进度保存、缩略图解码也在后台完成。确认最后一张后，顶部显示“已完成”，可返回设置开始下一批。保存中请求暂停、停止或关闭，会先完成当前写入；PNG 仍为无损格式，使用较低压缩等级以加快保存，文件可能略大。
+
+During review, the next source image, corners, and crop preview are prepared in the background; readiness appears below the preview. Saving images/checkpoints and decoding thumbnails also use background workers. After the final confirmation, the header shows Complete; return to Settings for another batch. Pause, Stop, or Close during a write takes effect after that write finishes. PNG remains lossless; faster compression can produce larger files.
 
 [使用指南 / Usage](docs/USAGE.md) · [模型与评估 / Model & evaluation](docs/MODEL_CARD.md) · [继续训练 / Training](docs/TRAINING.md) · [发布指南 / Publishing](docs/PUBLISHING.md)
 

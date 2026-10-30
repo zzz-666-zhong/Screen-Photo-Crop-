@@ -16,6 +16,7 @@ screen_crop.py
 white_border.py
 black_border.py
 crop_ui.py
+review_pipeline.py
 batch_state.py
 batch_status.py
 train_screen_model.py
@@ -47,6 +48,7 @@ tests/test_crop.py
 tests/test_release.py
 tests/test_startup.py
 tests/test_ui.py
+tests/test_pipeline.py
 tests/test_batch_state.py
 tests/test_fixed.py
 tests/test_progress.py
