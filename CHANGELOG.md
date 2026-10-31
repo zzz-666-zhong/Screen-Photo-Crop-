@@ -1,5 +1,10 @@
 # 更新记录 / Changelog
 
+## 0.11.2 — 2026-10-31
+
+- 逐张审核为明显过小的候选增加经新照片训练的补充模型，并以细黑框一致性保护原有结果。 / Review uses an additional model guarded by thin-frame agreement for clearly undersized proposals.
+- 该模型基于同一场景的有限样本与自动候选标签；跨场景效果尚需验证。 / Training uses limited same-setup samples and provisional automatic labels; generalization remains unverified.
+
 ## 0.11.1 — 2026-10-30
 
 - 逐张审核新增当前图片的边缘/黑边算法切换按钮，后台重新识别并显示当前算法；下一张保留批次默认模式。 / Add per-image edge/frame switching in review with background re-detection; the next image retains the batch default.

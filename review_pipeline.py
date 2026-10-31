@@ -33,7 +33,8 @@ class ReviewPipeline:
         result = PreparedImage(digest, image,algorithm='black' if self.args.black_review else 'edges')
         if not (self.args.manual or self.args.retry_failed):
             try:
-                detector = self.backend.detect_black_border if self.args.black_review else self.backend.detect_screen
+                detector = (self.backend.detect_black_border if self.args.black_review else
+                            getattr(self.backend, 'detect_review_screen', self.backend.detect_screen))
                 result.corners = detector(image, square=self.args.square)
                 if result.corners is not None:
                     result.preview = self.backend.finish_crop(

@@ -4,7 +4,11 @@
 
 Extract complete pictures from photographed screens with automatic corner detection, perspective correction, and dark-content preservation. Includes a pretrained model, a single-page preview, Enter-to-save review, manual re-cropping, and square mode.
 
-**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.11.1**
+**Python 3.10+ · OpenCV 4.x · CPU · MIT · v0.11.2**
+
+逐张审核使用补充模型辅助修正明显过小的内部误框：只有细黑框和新模型对更大边界达成一致时才替换建议框，仍须人工确认。该模型针对同一拍摄场景训练，不能保证其他场景均有改善；详见[模型与评估](docs/MODEL_CARD.md)。
+
+Review uses an additional model to correct clearly undersized interior proposals only when a thin-frame detector agrees with its larger proposal; every image still requires confirmation. Training samples share one capture setup and do not establish performance in other settings; see the [model card](docs/MODEL_CARD.md).
 
 逐张审核时可点击 **“改用黑边 / Use frame”** 为当前图片重新识别，也可点击 **“改用边缘 / Use edges”** 切回。上方显示当前算法；切换只影响这一张，下一张沿用批次原模式。切换不会自动保存，未找到新边界时保留原选区，仍可手动调整。普通审核和黑边审核均支持该按钮。
 

@@ -26,6 +26,35 @@ from train_screen_model import overlap
 ROOT = Path(__file__).resolve().parents[1]
 
 
+class ReviewSpecialistTests(unittest.TestCase):
+    def setUp(self):
+        self.image=np.zeros((1000,1000,3),np.uint8)
+        self.small=np.float32([[400,400],[440,400],[440,440],[400,440]])
+        self.frame=np.float32([[300,300],[600,300],[600,600],[300,600]])
+
+    def test_agreeing_frame_and_specialist_replace_obvious_interior_box(self):
+        with patch.object(crop,'detect_screen',return_value=self.small), \
+             patch.object(crop,'detect_black_border',return_value=self.frame), \
+             patch.object(crop,'_detect_screen_general',return_value=self.frame):
+            np.testing.assert_array_equal(crop.detect_review_screen(self.image),self.frame)
+
+    def test_disagreement_or_missing_specialist_keeps_primary(self):
+        other=np.float32([[650,650],[900,650],[900,900],[650,900]])
+        with patch.object(crop,'detect_screen',return_value=self.small), \
+             patch.object(crop,'detect_black_border',return_value=self.frame), \
+             patch.object(crop,'_detect_screen_general',return_value=other):
+            np.testing.assert_array_equal(crop.detect_review_screen(self.image),self.small)
+        with patch.object(crop,'detect_screen',return_value=self.small), \
+             patch.object(crop,'detect_black_border',side_effect=OSError('unavailable')):
+            np.testing.assert_array_equal(crop.detect_review_screen(self.image),self.small)
+
+    def test_large_primary_never_invokes_frame(self):
+        with patch.object(crop,'detect_screen',return_value=self.frame), \
+             patch.object(crop,'detect_black_border') as detect_frame:
+            np.testing.assert_array_equal(crop.detect_review_screen(self.image),self.frame)
+            detect_frame.assert_not_called()
+
+
 class GeometryTests(unittest.TestCase):
     def test_unordered_perspective_corners_produce_a_rectangle(self):
         image, quad = make_scene()

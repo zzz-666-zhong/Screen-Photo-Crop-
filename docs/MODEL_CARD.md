@@ -1,5 +1,13 @@
 # 模型说明与历史评估 / Model card and historical evaluation
 
+## 逐张审核补充模型 v0.11.2 / Review specialist
+
+使用 54 张照片训练：44 张采用自动细框生成的候选标签并经缩略图检查，另 10 张按图像近似标注。加入反光增强后，实际采用 102 个原图或增强样本。留出 22 张照片：4 张使用近似标注，其余使用自动框作为参考并经缩略图检查。所有照片来自同一拍摄场景，不能代表跨场景准确率；自动框也不是独立人工真值。以 IoU ≥ 0.85 为阈值，正方形模式旧方法为 14/22，保守接入后为 16/22；原有 16 个合成场景的达标数保持 16/16。仅当普通结果明显过小，且细框与补充模型高度一致时才替换建议框，仍需逐张确认。
+
+Trained on 54 photos: 44 provisionally labeled by the frame detector and inspected as thumbnails, and 10 approximately annotated. With glare augmentation, 102 original or augmented variants were fitted. A further 22 same-setup photos were held out, four with approximate annotations and the rest with visually inspected automatic frame references. These references are not independent manual ground truth and do not establish performance across other scenes. At IoU ≥ 0.85, square-mode passes changed from 14/22 to 16/22 under the guarded integration; 16/16 existing synthetic scenarios still pass. Review retains the normal proposal unless it is clearly undersized and the frame and specialist agree; manual confirmation remains required.
+
+补充权重 SHA-256 / Specialist SHA-256: `27cc52a14882902bde677d4d109cb7007c7532be1db127f1fb0796220baf6d89`.
+
 ## 用途 / Intended use
 
 定位拍摄屏幕中显示的完整图片，产生四角用于裁剪和透视校正。原森林主要用于彩色内容，v0.2.0 对灰度和低对比度候选补充四边/纹理证据。模型为候选四边形评分，不是语义分割或去模糊模型。

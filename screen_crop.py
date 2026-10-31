@@ -27,7 +27,7 @@ except ImportError as exc:
     ) from exc
 
 
-__version__ = "0.11.1"
+__version__ = "0.11.2"
 
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 SUCCESS_FOLDER = "裁剪成功"
@@ -369,7 +369,34 @@ def detect_screen(image: np.ndarray, *, square: bool = False) -> np.ndarray | No
     return None
 
 
-def _detect_screen_general(image: np.ndarray, *, square: bool = False) -> np.ndarray | None:
+def detect_review_screen(image: np.ndarray, *, square: bool = False) -> np.ndarray | None:
+    """Keep the usual proposal unless the frame and specialist agree on a larger one."""
+    primary=detect_screen(image,square=square)
+    if primary is None or abs(cv2.contourArea(primary)) >= image.shape[0]*image.shape[1]*.04:
+        return primary
+    model_dir=Path(__file__).with_name('extreme_review_model')
+    if not (model_dir/'screen_crop_model.json').is_file() or not (model_dir/'screen_crop_forest.xml.gz').is_file():
+        return primary
+    try:
+        frame=detect_black_border(image,square=square)
+        if frame is None:
+            return primary
+        primary_area=abs(cv2.contourArea(primary)); frame_area=abs(cv2.contourArea(frame))
+        intersection,_=cv2.intersectConvexConvex(primary,frame)
+        if frame_area<primary_area*4 or intersection<primary_area*.9:
+            return primary
+        alternate=_detect_screen_general(image,square=square,model_dir=model_dir)
+        if alternate is None:
+            return primary
+        alternate_area=abs(cv2.contourArea(alternate))
+        intersection,_=cv2.intersectConvexConvex(alternate,frame)
+        union=alternate_area+frame_area-intersection
+        return alternate if union>0 and intersection/union>=.85 else primary
+    except (ValueError,OSError,AttributeError,ImportError,cv2.error):
+        return primary
+
+
+def _detect_screen_general(image: np.ndarray, *, square: bool = False, model_dir=None) -> np.ndarray | None:
     import json
     from white_border import detect_light_picture, light_score
     light=detect_light_picture(image,order_corners,square=square)
@@ -385,14 +412,14 @@ def _detect_screen_general(image: np.ndarray, *, square: bool = False) -> np.nda
     evidence=photo_evidence(image)
     candidates=photo_candidates(image,evidence=evidence)
     if not candidates:return None
-    path=Path(__file__).with_name('screen_crop_model.json')
+    path=(Path(model_dir) if model_dir is not None else Path(__file__).parent)/'screen_crop_model.json'
     if not path.exists():
         raise ValueError('Missing screen_crop_model.json. Keep the model beside screen_crop.py.')
     model=json.loads(path.read_text(encoding='utf-8'))
     if model['features'] != FEATURE_NAMES:
         raise ValueError('Model version mismatch. Extract all files from the same release.')
     X=np.array([f for _,f in candidates])
-    forest_path=Path(__file__).with_name('screen_crop_forest.xml.gz')
+    forest_path=path.with_name('screen_crop_forest.xml.gz')
     if not forest_path.exists():
         raise ValueError('Missing screen_crop_forest.xml.gz. Extract all release files together.')
     forest=load_scoring_forest(str(forest_path),forest_path.stat().st_mtime_ns)

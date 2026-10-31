@@ -61,6 +61,13 @@ class PipelineTests(unittest.TestCase):
         self.backend.detect_screen.assert_not_called()
         self.assertIsNone(result.preview)
 
+    def test_review_uses_specialist_aware_detector_when_available(self):
+        self.backend.detect_review_screen=Mock(return_value=self.quad)
+        result=self.pipeline.take(self.path).result(timeout=4)
+        self.backend.detect_review_screen.assert_called_once()
+        self.backend.detect_screen.assert_not_called()
+        self.assertIsNotNone(result.preview)
+
     def test_close_discards_the_pending_entry(self):
         self.pipeline.request(self.path)
         self.pipeline.close()

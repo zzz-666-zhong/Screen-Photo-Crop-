@@ -77,6 +77,14 @@ def build(root: Path, output: Path, overwrite: bool = False) -> Path:
             raise ValueError('Release is missing a compatible reflection model.')
         if hashlib.sha256(weights.read_bytes()).hexdigest() != specialist['weight_sha256']:
             raise ValueError('Reflection weights do not match their metadata fingerprint.')
+    review_dir=root/'extreme_review_model'
+    review_metadata=review_dir/'screen_crop_model.json'
+    review_weights=review_dir/'screen_crop_forest.xml.gz'
+    if review_metadata not in files or review_weights not in files:
+        raise ValueError('Release is missing the review specialist model.')
+    review_model=json.loads(review_metadata.read_text(encoding='utf-8'))
+    if review_model['features'] != features or hashlib.sha256(review_weights.read_bytes()).hexdigest() != review_model['weight_sha256']:
+        raise ValueError('Review specialist features or weight fingerprint do not match.')
     validate_links(root, files)
     basename = f"screen-photo-crop-v{version}"
     destination = output / f"{basename}.zip"

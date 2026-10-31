@@ -987,7 +987,8 @@ class CropWorkspace:
         return None
 
     def detect_review_corners(self,image,args):
-        detector=self.backend.detect_black_border if args.black_review else self.backend.detect_screen
+        detector=(self.backend.detect_black_border if args.black_review else
+                  getattr(self.backend, 'detect_review_screen', self.backend.detect_screen))
         return detector(image,square=args.square)
 
     def restore_current_algorithm(self,args):

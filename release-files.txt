@@ -24,6 +24,8 @@ train_screen_model.py
 screen_crop_model.json
 screen_crop_forest.xml.gz
 screen_crop_reflection.xml.gz
+extreme_review_model/screen_crop_model.json
+extreme_review_model/screen_crop_forest.xml.gz
 启动裁剪.cmd
 安装环境.cmd
 使用说明.md
