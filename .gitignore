@@ -56,3 +56,13 @@ desktop.ini
 .agents/
 
 # The pretrained screen_crop_forest.xml.gz is intentionally versioned.
+# Windows desktop build products and private validation captures
+**/bin/
+**/obj/
+/desktop/artifacts/
+/desktop/validation/
+**/待复核/
+**/已排除/
+batch_session.json
+.batch.lock
+screen-crop.preferences.json

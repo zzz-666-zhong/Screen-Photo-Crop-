@@ -45,6 +45,10 @@ def application_metadata(root: Path) -> tuple[str, list[str]]:
                 if isinstance(target, ast.Name) and target.id in {"__version__", "FEATURE_NAMES"}:
                     constants[target.id] = ast.literal_eval(node.value)
     version = constants["__version__"]
+    desktop_project = root / "desktop" / "Crop.Desktop" / "Crop.Desktop.csproj"
+    if desktop_project.is_file():
+        import xml.etree.ElementTree as ET
+        version = ET.parse(desktop_project).findtext(".//Version") or "1.0.0"
     if not re.fullmatch(r"\d+\.\d+\.\d+", version):
         raise ValueError("Application version must use major.minor.patch.")
     return version, constants["FEATURE_NAMES"]

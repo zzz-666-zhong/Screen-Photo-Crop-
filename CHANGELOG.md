@@ -1,5 +1,13 @@
 # 更新记录 / Changelog
 
+## 1.0.0 — Native batch desktop / 原生批次工作台
+
+- Replace the default frontend and backend with C# / .NET 10 / WPF / traditional OpenCV. No trained detector or Python runtime is used in the new app. 保留旧版独立入口以追溯实验。
+- Run whole folders unattended, export accepted results, collect uncertain proposals in a separate review queue, and continue past corrupt images. 新增分页缩略图、筛选、批量确认和四角编辑。
+- Add multiscale frame detection, fragmented-line proposals, thin-frame evidence and explainable review reasons. 对44张开发诊断与另一个会话500张真实照片检查，限制见 desktop/VALIDATION.md。
+- Persist source/output hashes, preprocessing settings, review decisions and compatible crop receipts; support pause/resume and exclusion archives. 自动结果不成为人工确认标签。
+
+
 ## 0.11.2 — 2026-10-31
 
 - 逐张审核为明显过小的候选增加经新照片训练的补充模型，并以细黑框一致性保护原有结果。 / Review uses an additional model guarded by thin-frame agreement for clearly undersized proposals.
