@@ -1,35 +1,41 @@
-# 切屏 · 批量裁剪工作台
+# ScreenCrop · 抖动拍屏照片批量裁剪
 
-Windows 原生桌面版：**C# / .NET 10 / WPF / OpenCvSharp**。面向真实抖动拍屏照片，逐图检测边界、透视校正，整批运行后集中复核疑难项。运行不依赖 Python、CNN、随机森林、在线接口或模型权重。
+**手持拍屏有拖影，只要目标外边界仍能辨认，ScreenCrop 就可以尝试逐张定位四角，裁出完整画面并校正透视。** 同一批照片可以有不同的位移、倾斜和透视。边界证据充分时程序自动保存，证据较弱时把照片和可用候选交给人工复核。输出从原照片采样，保留拍摄时的拖影、暗色内容和纹理。
 
-## 启动
+当前默认入口是 **Windows x64 原生桌面版**，使用 C#、.NET 10、WPF 和 OpenCvSharp，在本机处理静态照片。旧版 Python 随机森林与权重保留用于复现实验。
 
-双击 `启动裁剪.cmd`。本机已构建的程序位于 `desktop/artifacts/win-x64/ScreenCrop.exe`，可直接打开。首次从源码构建需要 .NET 10 SDK 和联网还原 NuGet 依赖；生成的 Windows x64 自包含目录可整体复制到其他电脑，保留全部 DLL 和许可证。
+[使用指南](docs/USAGE.md) · [检测与模型说明](docs/MODEL_CARD.md) · [原生版验证记录](desktop/VALIDATION.md) · [更新记录](CHANGELOG.md)
 
-1. 选择原照片和一个新的结果目录。目录不能相同；已有旧版实验结果不会被自动覆盖。
-2. 设置目标形状、是否包含子目录、输出尺寸与内切像素。默认保留原生裁剪分辨率、内切 0，保留真实拖影与暗色内容。
-3. 点击“开始整批处理”。可靠结果自动保存，可疑边界暂存，损坏图片记录后继续。
-4. 结束后筛选“待复核”，点击缩略图调整四角；检查过的有效候选也可勾选后“确认所选”。
-5. 支持完成当前照片后暂停、关闭，以及打开批次继续未处理部分。
+## 快速开始
 
-## 定位与分流
+1. 完整解压或克隆仓库，在 Windows 上双击 **`启动裁剪.cmd`**。首次从源码构建需安装 .NET 10 SDK，并联网还原 NuGet 依赖。已有构建可直接启动 `desktop/artifacts/win-x64/ScreenCrop.exe`。
+2. 选择原照片目录和一个新的结果目录。目标本身是正方形时勾选「目标图片为正方形」。首轮建议保留原生裁剪分辨率，四边内切保持 `0`。
+3. 点击「开始整批处理」。批量完成后先处理「待复核」，再抽查「自动通过」，重点检查拖影方向上的角点、细边和容易被误选的内部轮廓。
+4. 打开缩略图可放大、拖动或重选四角。检查右侧预览后点「确认保存并下一张」。若强拖影、反光或缺边使目标无法辨认，可标记为拍摄失败。
 
-多阈值轮廓、断裂线段合并和四边组合产生候选，在原始像素上检查边界连续性、对比度、外侧背景、细框恢复与候选歧义。大照片使用两个检测尺度核对边界一致性。所有评分都是启发式证据，不是正确率概率。
+自包含构建可在 Windows x64 电脑上直接运行。迁移时请复制整个发布目录，包含本机 DLL 和许可证。
 
-自动规则不能保证零误裁。可在总览抽查“自动通过”；不满足规则的结果不会直接放入成功目录。传统检测主要适合亮背景屏幕内有可辨边界的单张图片，严重模糊、边界与背景近似或图片未拍完整时仍需人工处理。没有去模糊、锐化输出或按解码结果选择裁剪框。
+## 抖动画面如何裁切
 
-## 结果与科研记录
+- **每张独立定位。** 轮廓与线段生成四边形候选，必要时在增强后的检测图上补找候选。分离或断裂的边缘也可提供定位线索。
+- **用未增强的像素核对外边界。** 检查四边支持率、边缘对比、外侧背景、细框和候选歧义。大图还会尝试在两种尺度定位，并核对两组有效四角是否一致。
+- **分流后再导出。** 拖影较重但轮廓可辨的照片可以手动校正四角再保存。四角不可辨、目标出框或被大片反光遮挡时，建议重拍。
+- **保留采集痕迹。** 透视校正会重新采样像素，输出仍保留运动模糊。对抖动边界的适应性以具体样本为准。合成拖影检查与真实会话验证见 [检测与模型说明](docs/MODEL_CARD.md) 和 [原生版验证记录](desktop/VALIDATION.md)。
 
-- `裁剪成功/`：自动通过和人工确认的 PNG，保留原相对路径，命名为 `原文件名含扩展名_cropped.png`。
-- `待复核/`：有有效候选但需检查的预裁剪；没有候选的照片仅记录在队列中。
-- `已排除/`：人工标记拍摄失败后的已有裁剪归档，移出成功目录；原照片保留。
-- `batch_session.json`：新桌面版恢复记录，包含每张原图/输出 SHA-256、四角、状态、分流证据和统一处理参数。
-- `crop_session.json`、`crop_labels.json`：兼容现有科研配对脚本的身份和四角记录。**自动通过不标为人工确认标签。**
-- `crop_report.csv`：全批状态与原因，包含未通过和失败样本，UTF-8 BOM 编码。
+## 批次与输出
 
-透视矫正使用双线性插值；选择固定输出边长时再使用面积缩小。内切发生在全分辨率校正图上。参数在批次创建后锁定，导出时需区分自动通过、人工确认、待复核和拍摄失败，不能只用成功目录的数量代表端到端成功率。
+| 项目 | 内容 |
+| --- | --- |
+| `裁剪成功/` | 自动通过和人工确认的 PNG。沿用原相对目录，文件名如 `photo.jpg_cropped.png`。 |
+| `待复核/` | 有可用候选时保存预裁剪，便于检查。无候选的照片仍可在工作台手动选四角。 |
+| `已排除/` | 已有裁剪在人工标记拍摄失败后移入此处，原照片留在输入目录。 |
+| `batch_session.json` | 恢复批次所需的设置、相对路径、状态、四角和源图及输出 SHA-256。 |
+| `crop_report.csv` | 整批状态及原因，采用带 BOM 的 UTF-8，可用 Excel 打开。 |
+| `crop_session.json`、`crop_labels.json` | 供现有科研脚本读取的兼容记录。`confirmed` 仅在人工确认时为真。 |
 
-## 开发
+暂停或退出后，打开含 `batch_session.json` 的结果目录即可继续批次。统计时建议保留全批分母，并分别报告自动通过、人工确认、待复核、拍摄失败和处理失败。
+
+## 开发与复现
 
 ```powershell
 dotnet build desktop/Crop.Desktop/Crop.Desktop.csproj -c Release
@@ -37,14 +43,12 @@ dotnet run --project desktop/Crop.Verify/Crop.Verify.csproj -c Release
 dotnet publish desktop/Crop.Desktop/Crop.Desktop.csproj -c Release -r win-x64 --self-contained true -o desktop/artifacts/win-x64
 ```
 
-核心、界面和验证程序分离：`Crop.Core` 负责传统视觉和存档；`Crop.Desktop` 负责批次浏览、四角交互和后台操作；`Crop.Verify` 执行实际 OpenCV 图像处理及批次回归。验证照片、构建产物和个人目录配置不会进入源码发布包。
+`Crop.Core` 负责检测、透视和批次记录，`Crop.Desktop` 提供桌面工作台，`Crop.Verify` 运行 OpenCV 几何与批次回归。当前原生版固定 OpenCvSharp `4.13.0.20261107`，发布目录随附第三方许可。项目许可见 [LICENSE](LICENSE)。
 
-技术来源：[WPF 官方文档](https://learn.microsoft.com/dotnet/desktop/wpf/)；[OpenCvSharp](https://github.com/shimat/opencvsharp)。依赖固定为 OpenCvSharp 4.13.0.20261107，发布目录附带第三方许可。
+## 旧版 Python
 
-## 旧版
+使用 `启动旧版.cmd`，或先运行 `安装旧版环境.cmd`。旧版命令行、数据与训练入口见 [使用指南中的旧版部分](docs/USAGE.md#旧版-python) 和 [训练说明](docs/TRAINING.md)。
 
-原 Python 实现和权重保留用于结果追溯；入口为 `启动旧版.cmd`，环境准备为 `安装旧版环境.cmd`。旧版操作与训练说明见 [README.legacy.md](README.legacy.md)。新版默认入口完整使用 C# 后端。
+## English summary
 
----
-
-Native Windows batch cropper built with C#, WPF and traditional OpenCV geometry. Run an entire folder unattended, then inspect a separate review queue. No Python runtime, trained detector, network service or image restoration is used by the new desktop app. Automatic rules are heuristic and do not guarantee correctness. Source files remain intact; crops, hashes, corners, decisions and preprocessing settings are recorded. The legacy Python application remains available through `启动旧版.cmd` for reproducibility.
+ScreenCrop batch-crops images from photographed screens, including captures with **handheld camera shake and visible motion blur**. When the outer frame remains distinguishable, it estimates each photo’s corners independently and rectifies perspective. Uncertain boundaries go to manual review. Crops are sampled from the original photo and retain captured blur. The default Windows x64 app uses local OpenCV geometry. The legacy Python models and their evaluation are documented in the [model card](docs/MODEL_CARD.md).

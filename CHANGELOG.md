@@ -1,12 +1,14 @@
 # 更新记录 / Changelog
 
-## 1.0.0 — Native batch desktop / 原生批次工作台
+## 1.0.0 — 原生批次工作台 / Native batch desktop
 
-- Replace the default frontend and backend with C# / .NET 10 / WPF / traditional OpenCV. No trained detector or Python runtime is used in the new app. 保留旧版独立入口以追溯实验。
-- Run whole folders unattended, export accepted results, collect uncertain proposals in a separate review queue, and continue past corrupt images. 新增分页缩略图、筛选、批量确认和四角编辑。
-- Add multiscale frame detection, fragmented-line proposals, thin-frame evidence and explainable review reasons. 对44张开发诊断与另一个会话500张真实照片检查，限制见 desktop/VALIDATION.md。
-- Persist source/output hashes, preprocessing settings, review decisions and compatible crop receipts; support pause/resume and exclusion archives. 自动结果不成为人工确认标签。
+- **抖动画面裁切。** 同一批中的照片逐张定位四角。轮廓、断裂线段和必要时的增强检测帮助找回拖影中的外边界，再用未增强的图像证据验证候选。透视校正从原照片采样，保留原有拖影。
+- **批量处理与复核。** 可靠候选自动保存，疑难照片进入待复核。支持缩略图分页、筛选、四角编辑、批量确认，以及记录处理失败后继续。
+- **批次恢复与追溯。** 记录原图和结果 SHA-256、相对路径、处理选项及确认状态；支持暂停续跑、排除归档和兼容导出。人工确认状态独立记录。
+- **独立原生入口。** 默认桌面版改为 C#、.NET 10、WPF 和传统 OpenCV。旧 Python 模型和独立启动器保留用于复现。
+- **验证。** 合成运动拖影样例检查了自动保存和保留候选四角进入复核两种结果。真实会话样本、参考框来源和评估限制见 [原生版验证记录](desktop/VALIDATION.md) 与 [检测与模型说明](docs/MODEL_CARD.md)。
 
+Each capture is localized and rectified independently, including shaky screen photos with a visible outer frame. Uncertain borders go to review and the crop retains the blur captured in the source. See the [usage guide](docs/USAGE.md) for the review workflow.
 
 ## 0.11.2 — 2026-10-31
 

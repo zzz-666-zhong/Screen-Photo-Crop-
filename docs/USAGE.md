@@ -1,10 +1,62 @@
-# 使用指南 / Usage guide
+# ScreenCrop 使用指南 / Usage guide
+
+本页优先说明仓库默认的 Windows 原生桌面版。若要复现旧实验、执行固定坐标裁切或调用 Python 参数，请跳到 [旧版 Python](#旧版-python)。
+
+## 1. 启动原生版
+
+双击 `启动裁剪.cmd`。已有构建位于 `desktop/artifacts/win-x64/ScreenCrop.exe`。首次从源码构建需要 Windows x64、.NET 10 SDK 和可访问的 NuGet；`安装环境.cmd` 可只构建而不启动。使用自包含发布包时，完整解压后双击 `ScreenCrop.exe`。
+
+## 2. 建立批次
+
+1. 点击「新建批次」，用「浏览原照片」选择存有拍屏照片的文件夹，也可以将文件夹拖到原照片目录框。
+2. 用「浏览结果位置」选择另一个目录。首次处理建议使用新目录；继续上次处理请用「打开已有批次」。
+3. 根据屏幕里**被拍摄内容本身**选择是否勾选「目标图片为正方形」。普通横图或竖图请选择保留原生裁剪分辨率，避免固定方形尺寸拉伸画面。
+4. 开始时将「四边内切」设为 `0`，保留边缘内容。批次创建后，设置随记录锁定。需要另一套参数时，新建结果目录和批次。
+5. 点击「开始整批处理」。缩略图显示建议边界，右下角的小图显示可用的裁剪预览。「上一页」「下一页」、状态筛选和文件名搜索可帮助找到照片。
+
+## 3. 抖动画面怎么处理
+
+| 拍摄情况 | 操作 |
+| --- | --- |
+| 有轻度拖影，外框四边仍清楚 | 正常跑整批。之后抽查「自动通过」，对照原图检查四个角是否贴合目标外框。 |
+| 边缘局部断开或有重影，仍能看出外框 | 打开「待复核」，放大检查沿拖影方向的边缘。以完整画面的外框为准，避开内部高对比度线条和拖影形成的重复边缘。必要时手动重选四角。 |
+| 无自动框，但仍能辨认四角 | 直接在原图上选四个角，等右侧出现预览后确认。 |
+| 强拖影或反光遮住关键边界，画面缺角或未拍完整 | 无法可靠判定边界时，可点击「标记拍摄失败」，根据记录安排重拍。 |
+
+ScreenCrop 会校正裁出画面的透视，拍摄时形成的拖影仍保留在结果里。目标识别和画面清晰度需要分别检查。
+
+### 复核操作
+
+- 滚轮缩放，中键拖动平移。拖动角点微调，或点击原图重新选择四个目标角。按 `F` 或用「适应窗口」回到全图视野，`Ctrl+Z` 撤销最近加入的角点。
+- 「重新识别」可为当前图再次生成建议。确认右侧预览完整后，点击「确认保存并下一张」或按 `Enter`。「暂时跳过」可保留这张待以后处理。
+- 批量确认前，先逐张核对选中的候选。例如，筛选「待复核」后勾选已经检查过的有效候选，再点击「确认所选」。
+- 「处理失败」用于读图、写入等程序错误；「标记拍摄失败」是对照片质量的人工判断。原图保持在输入目录，已有裁剪可移入 `已排除/`。
+
+## 4. 暂停、恢复和结果
+
+- 点「暂停」后，程序会先完成当前照片并记录进度。退出后，用「打开已有批次」选择含 `batch_session.json` 的结果目录，点击「继续处理未完成照片」。
+- 保存记录使用原相对路径和 SHA-256。若移走或改动了原图或已保存结果，请先检查路径与文件内容。对没有现有输出的处理错误，修正原因后可用「重试失败」。
+- 「裁剪成功」含已自动保存和人工确认的 PNG；「待复核」的预裁剪用于检查。通过「打开结果」定位目录。
+- 用 Excel 打开 `crop_report.csv` 查看整批状态和原因；整理训练标签时使用 `crop_labels.json` 中的 `confirmed` 字段。报告计算总成功率时，以输入照片数为分母，并注明待复核和拍摄失败的数量。
+
+### English quick start
+
+Launch `启动裁剪.cmd` from the complete repository, or run `ScreenCrop.exe` from a complete self-contained build. Select source and result folders, choose square only when the photographed target is square, and run the batch. For shaky captures, inspect the outer corners, especially in the direction of motion blur. Refine uncertain proposals in the review queue, or pick four corners manually when they remain visible. If motion blur or glare hides the relevant borders, mark the capture as rejected and retake it. A crop preserves blur from the source.
+
+## 旧版 Python
+
+使用 `启动旧版.cmd` 或 `安装旧版环境.cmd`。旧版使用 Python 3.10+，并保留了用于历史裁切的模型权重、命令行参数和交互。下文为旧版详细操作，适用于旧版的模式名称、结果文件与报表。
+
+Use `启动旧版.cmd` or `安装旧版环境.cmd` for the legacy Python workflow. The expandable reference describes legacy UI controls, CLI flags, outputs, and ledgers.
+
+<details>
+<summary>展开旧版完整操作 / Expand legacy reference</summary>
 
 命令均从项目根目录运行。示例中的原图目录需自行创建并放入照片；发布包不附带真实原图。Windows 使用下列命令，macOS/Linux 将解释器路径替换为 `.crop-env/bin/python`；图形窗口还需要 Tkinter 和桌面环境。
 
 Run commands from the project root. Create and populate the example input folder yourself; real source photos are not bundled. Use the following interpreter paths on Windows, or `.crop-env/bin/python` on macOS/Linux. Graphical windows also require Tkinter and a desktop session.
 
-## 1. 环境与启动 / Setup and launch
+### 1. 环境与启动 / Setup and launch
 
 建议使用 Python 3.10 或更新版本。依赖范围来自项目的 `requirements.txt`：
 
@@ -16,9 +68,9 @@ opencv-python>=4.8,<5
 Pillow>=10,<13
 ```
 
-统一工作台和文件夹选择窗口需要 Tkinter 与桌面环境。请将主程序与三个模型文件（JSON 元数据和两份压缩权重）放在同一目录，模型 `.xml.gz` 无需解压。
+统一工作台和文件夹选择窗口需要 Tkinter 与桌面环境。请将主程序与仓库提供的 JSON 元数据及相应压缩权重放在同一目录，模型 `.xml.gz` 无需解压。
 
-The unified workspace and folder dialogs require Tkinter and a desktop session. Keep the main script and all three model files (JSON metadata and two compressed forests) together. Do not decompress the `.xml.gz` model.
+The unified workspace and folder dialogs require Tkinter and a desktop session. Keep the main script and the bundled model metadata and compressed weights together. Do not decompress the `.xml.gz` model.
 
 在项目目录打开 PowerShell。首次安装，或迁移到新电脑后，创建独立环境：
 
@@ -29,13 +81,13 @@ python -m venv .crop-env
 .\.crop-env\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-也可直接双击 `启动裁剪.cmd`，由启动器自动创建环境和安装依赖；双击 `安装环境.cmd` 可只准备环境。首次自动安装需要联网。本地已有可用 `.crop-env` 时会直接复用。虚拟环境含有本机路径，迁移到其他电脑后应重新建立环境。
+也可直接双击 `启动旧版.cmd`，由启动器自动创建环境和安装依赖；双击 `安装旧版环境.cmd` 可只准备环境。首次自动安装需要联网。本地已有可用 `.crop-env` 时会直接复用。虚拟环境含有本机路径，迁移到其他电脑后应重新建立环境。
 
-You can also double-click `启动裁剪.cmd` to create the environment and install dependencies automatically, or `安装环境.cmd` to perform setup only. Initial setup needs internet access. A working `.crop-env` is reused. Environments contain machine-specific paths and should be recreated after moving to another computer.
+You can also double-click `启动旧版.cmd` to create the environment and install dependencies automatically, or `安装旧版环境.cmd` to perform setup only. Initial setup needs internet access. A working `.crop-env` is reused. Environments contain machine-specific paths and should be recreated after moving to another computer.
 
-双击 **`启动裁剪.cmd`**，或运行以下命令。直接运行 `screen_crop.py` 遇到缺少依赖或不兼容版本时，也会准备并切换到本项目环境；双击 `.py` 本身需要 Windows 已配置 Python 文件关联。
+双击 **`启动旧版.cmd`**，或运行以下命令。直接运行 `screen_crop.py` 遇到缺少依赖或不兼容版本时，也会准备并切换到本项目环境；双击 `.py` 本身需要 Windows 已配置 Python 文件关联。
 
-Double-click **`启动裁剪.cmd`**, or run the command below. Direct execution of `screen_crop.py` also prepares/switches to the project environment when dependencies are missing or incompatible. Double-clicking `.py` requires a configured Windows Python file association.
+Double-click **`启动旧版.cmd`**, or run the command below. Direct execution of `screen_crop.py` also prepares/switches to the project environment when dependencies are missing or incompatible. Double-clicking `.py` requires a configured Windows Python file association.
 
 ```powershell
 .\.crop-env\Scripts\python.exe screen_crop.py
@@ -45,7 +97,7 @@ Double-click **`启动裁剪.cmd`**, or run the command below. Direct execution 
 
 With no arguments, the startup page lets you choose folders, Review/Black-border review/Manual/Fixed/Retry, and Full picture/Square 1:1. Retry uses the previous result root. Completion stays on the same page; Settings starts another batch.
 
-## 当前图片切换算法 / Switch the current image's detector
+### 当前图片切换算法 / Switch the current image's detector
 
 在普通审核点击 **“改用黑边 / Use frame”**，当前图片会重新计算黑框四角与预览；再点 **“改用边缘 / Use edges”** 可切回。黑边审核也支持临时改用边缘识别。上方算法标识随之更新，只有按 Enter 或保存按钮才写入裁剪结果。未找到可靠边界时保留原选区；当前图片仍可手动调整。
 
@@ -55,7 +107,7 @@ In Review, **Use frame** re-detects the current image's dark border and updates 
 
 The override affects this image only, leaving batch settings and look-ahead unchanged. The next image uses the batch default. Resume restores the current draft and detector choice; saved selections retain their detector provenance. Switching is disabled during detection/saving.
 
-## 后台准备与最后一张 / Background preparation and the final image
+### 后台准备与最后一张 / Background preparation and the final image
 
 普通模式优先使用图片边缘、浅色区域及原有模型识别四角，已有边缘结果不被黑框结果替换；只有未找到边界时才尝试细黑框辅助。专用“黑边识别”模式继续以细黑框为主。自动和预读使用相同的优先级。
 
@@ -69,7 +121,7 @@ While reviewing an image, background work prepares the next source, detection an
 
 After Enter, Saving & updating remains visible until writing completes; the last image then transitions to Complete. Pause/Stop/Close during saving waits for the active write. Folder and filename conventions remain the same. PNG is lossless; faster compression may increase file size.
 
-## 拍摄失败归档与表格 / Rejecting captures and the ledger
+### 拍摄失败归档与表格 / Rejecting captures and the ledger
 
 审核时若照片严重模糊、反光遮挡、目标缺失或未拍完整，在“拍摄失败 / Reject”旁选择原因，再点击该按钮即可归档并进入下一张，无需先选四角。也可选择“其他”。这属于人工质量判断；未识别到边界仍可手动选四角，不会自动归为拍摄失败。
 
@@ -83,7 +135,7 @@ For blur, obstructing glare, a missing target or cut-off content, select a reaso
 
 Filter Rejected on the right and double-click to revisit. Rejections count as processed, and count as cropped only if an output exists. Resume skips settled rejections. Revisit a row to re-crop, or use the CSV as a retake list and import new captures as a new batch. Retry failures continues to use detection/crop failures under `裁剪失败/`.
 
-## 黑边识别 · 手动确认 / Black-border detection with manual confirmation
+### 黑边识别 · 手动确认 / Black-border detection with manual confirmation
 
 普通自动识别也可识别文字图片和细黑框。固定坐标模式会识别第一张，确认后仍按固定坐标处理后续图片。手动四角和失败补裁默认等待选点；如需识别，点击 **“识别边界 / Detect”**，检查并调整建议后再保存。识别失败不会清除已有选点。
 
@@ -108,7 +160,7 @@ Use this for a photo/text picture with a thin dark outline on a lighter screen b
 
 Detection combines long edges/dark contours in a reduced image, checks the exterior and contrast on all four sides, and maps corners back to the original. Square mode favors complete frames; when a proposal looks truncated it conditionally tries the general detector and checks that its candidate encloses the first proposal. Existing model files are unchanged. Severe blur still requires manual correction.
 
-## 图片状态和进度 / Image status and progress
+### 图片状态和进度 / Image status and progress
 
 开始或继续批次后，右侧“图片状态 / Images”列出当前源文件夹的图片。下拉框可选择全部、未裁剪、已裁剪、待处理、已跳过、失败或拍摄失败；双击某一行可跳转到该图进行查看或修改。固定坐标模式使用统一坐标，修改坐标需开始新批次。
 
@@ -122,7 +174,7 @@ Cropped counts files actually present in `裁剪成功`; No crop includes pendin
 
 The progress bar shows cropped outputs as a share of the image count. Results are scanned on Start/Resume and updated after each image; click Refresh after external file moves, deletions, or additions. Viewing the list does not modify photos, outputs, or checkpoints.
 
-## 固定坐标批量导出 / Exporting with fixed coordinates
+### 固定坐标批量导出 / Exporting with fixed coordinates
 
 1. 选择“固定坐标 · 首张确认后批量导出”，填写原图和结果目录；目标本来是正方形时选择 Square。 / Select Fixed coordinates, choose source/result folders, and enable Square for originally square targets.
 2. 在首张待处理照片检查四角；需要时点击原图重选，滚轮放大或拖动角点。右侧预览正确后，按 Enter 或“确认坐标并批量导出”。 / Inspect the first pending photo. Click to reselect, zoom, or drag corners, then press Enter or Confirm & export when the preview is correct.
@@ -142,7 +194,7 @@ The progress bar shows cropped outputs as a share of the image count. Results ar
 
 Pause, Stop, or Close during export; Resume or the same CLI arguments plus `--resume` restores corners and progress from `crop_session.json` without reconfirming. Start a new batch to change corners. Fixed-batch thumbnails do not enter per-photo editing; use a Review/Manual batch with Overwrite for that. Only the explicitly confirmed reference is marked reviewed for training; later photos remain unreviewed.
 
-## 放大、拖移与精确选四角 / Zoom, pan, and precise corners
+### 放大、拖移与精确选四角 / Zoom, pan, and precise corners
 
 审核、手动和失败补裁共用左侧原图的缩放控件。滚轮上/下围绕鼠标放大/缩小，`+` 和 `−` 按钮围绕视野中心缩放，范围为适应窗口的 1–16 倍。右侧始终显示完整裁剪结果。
 
@@ -157,7 +209,7 @@ Review, Manual, and Retry share the source-view controls. Wheel up/down zooms ar
 
 Zoom changes only display: source corner coordinates, output pixels, and trim settings are independent of magnification. Re-cropping the same photo retains zoom for convenient reselection.
 
-## 2. 常用命令 / Common commands
+### 2. 常用命令 / Common commands
 
 以下命令均在项目目录执行，`结果示例` 是示例输出目录；输入、输出目录必须不同。首次处理一批新照片时，建议使用 `--review` 检查定位结果。
 
@@ -207,7 +259,7 @@ Pass the result root containing `裁剪成功` and `裁剪失败`, not the failu
 
 Existing outputs are skipped by default. Add `--overwrite` when reviewing or replacing them, including with `--review` or `--retry-failed`.
 
-### 正方形模式 / Square mode
+#### 正方形模式 / Square mode
 
 启动页选择“正方形 · 1:1”，或在命令中加 `--square`。它适用于目标原本是正方形的照片：保留四角内的完整内容并校正为 1:1，不从中间截取方形。普通横图/竖图应保持完整图片模式；选错形状可能造成拉伸。审核、手动、失败补裁和自动批处理均支持此参数。
 
@@ -219,7 +271,7 @@ python screen_crop.py "D:\拍屏照片" "D:\裁剪结果" --manual --square
 python screen_crop.py "D:\裁剪结果" --retry-failed --square
 ```
 
-### 窗口操作 / Window controls
+#### 窗口操作 / Window controls
 
 | 操作 / Action | 中文 | English |
 |---|---|---|
@@ -238,9 +290,9 @@ python screen_crop.py "D:\裁剪结果" --retry-failed --square
 
 Review, manual, and retry modes use the same workspace. Automatic batches have no preview window. Existing outputs are skipped; add `--overwrite` to review them again.
 
-## 批次管理与人工标签 / Batch management and reviewed labels
+### 批次管理与人工标签 / Batch management and reviewed labels
 
-### 返回修改与缩略图 / Revisiting and thumbnails
+#### 返回修改与缩略图 / Revisiting and thumbnails
 
 底部“上一张修改 / Previous”返回上一张原照片，载入已保存四角。底部缩略图列表可横向滚动，单击任一图片可以跳转；已有结果显示裁剪缩略图，未完成图片显示原图，当前项以紫色边框突出。批次完成后仍可点击缩略图重新修改。
 
@@ -252,7 +304,7 @@ Previous reopens the previous original with saved corners. Scroll the bottom thu
 
 Navigation retains unsaved points as drafts. Old PNGs and confirmed labels change only after Save & next or Enter. Skipping a revisited crop discards those edits while retaining its previous output. Saving continues through remaining work; jumping forward does not abandon earlier pending items.
 
-### 记忆设置、暂停与恢复 / Remembered settings, pause, and resume
+#### 记忆设置、暂停与恢复 / Remembered settings, pause, and resume
 
 程序记住最近一次原图目录、结果目录、处理方式、图片形状及选项，下次启动自动填写。“暂停”保存当前草稿和进度，随后点击“继续”，或在重新启动的设置页点击“继续上次批次”。“结束”和关闭窗口也保存恢复记录。续裁使用记录中的目录和全部裁剪选项，包括 CLI 设置的内缩、清黑边阈值等。
 
@@ -271,7 +323,7 @@ python screen_crop.py "D:\拍屏照片" "D:\裁剪结果" --review --square --re
 python screen_crop.py "D:\裁剪结果" --retry-failed --resume
 ```
 
-### 将人工确认结果导出为训练标签 / Exporting reviewed training labels
+#### 将人工确认结果导出为训练标签 / Exporting reviewed training labels
 
 每次确认保存，结果目录 `crop_labels.json` 记录原图路径及 SHA-256、EXIF 校正后的原图四角坐标、输出路径、是否人工修改、程序/模型版本及裁剪选项。审核中直接接受自动框也属于人工确认；手动选点和拖动角点标记为人工修改。无人值守自动结果标记为未确认，导出时排除。
 
@@ -293,7 +345,7 @@ Labels are deduplicated by source hash and updated after reconfirmation. Unatten
 
 The exported JSON is readable by `train_screen_model.py`, initially with every row set to `split: train`. Inspect labels and reserve distinct capture groups for holdout before fitting; related derivatives must share a group. Export does not fit or replace models. Photos, labels, paths, and checkpoints stay local and are excluded from the public file manifest. See [training](TRAINING.md).
 
-## 浅色边缘图片 / Pictures with white or faint borders
+### 浅色边缘图片 / Pictures with white or faint borders
 
 v0.5.0 自动识别先检查浅色背景中的完整图片边界。无需新开关；原本为正方形的目标继续选择正方形模式，可帮助补全与背景接近的一边。白底文字会尝试按整组内容定位，不做 OCR。普通横图、竖图保持完整图片模式。
 
@@ -303,7 +355,7 @@ v0.5.0 first checks for whole-picture borders on light backgrounds. No new switc
 
 Sparse characters, large blank regions, charts, and white margins indistinguishable from the background can still produce incomplete proposals. Inspect the preview, click the original to reselect corners, and use zoom/Focus/handle dragging. Detection benchmarks exclude image I/O, initial model loading, UI, and saving; see the [model card](MODEL_CARD.md).
 
-## 3. 黑边处理与参数 / Black margins and options
+### 3. 黑边处理与参数 / Black margins and options
 
 默认流程依据图片外边界去除屏幕背景，**不自动删除图片内部的近黑色行列**。这样可以保留黑衣服和暗色背景。自动边缘细化会额外向内微调约 0.5～2 个检测图像像素，以减轻透视插值残边；这个调整独立于默认值为 0 的 `--inset`，手动模式不执行自动边缘细化。
 
@@ -344,7 +396,7 @@ When enabled, trimming removes consecutive outer rows/columns with at least 90% 
 
 `--manual`, `--review`, `--black-review`, `--fixed`, and `--retry-failed` are mutually exclusive. `--trim-black` and `--no-trim-black` are also mutually exclusive.
 
-## 4. 输出与报告 / Outputs and reports
+### 4. 输出与报告 / Outputs and reports
 
 ```text
 结果示例/
@@ -383,14 +435,14 @@ CSV reports use UTF-8 with BOM for Excel compatibility and contain `input`, `out
 
 Exit codes: `0` means no processing errors, `1` indicates image-processing errors in the batch, and `2` indicates argument, path, or initialization errors. User skips and existing outputs do not count as processing errors.
 
-## 5. 使用边界与排查 / Limitations and troubleshooting
+### 5. 使用边界与排查 / Limitations and troubleshooting
 
 | 情况 / Situation | 说明与处理 / Explanation and action |
 |---|---|
-| `[WinError 5] 拒绝访问` / Access denied | 程序预先检查结果目录和成功/失败子目录的创建、写入、重命名及临时文件清理。失败后返回设置并选中结果路径；换一个可写目录后重新开始。若同一目录在资源管理器中可写，可能是当前启动进程受限，关闭旧窗口并双击 `启动裁剪.cmd`。不必为此修改系统目录权限。 / Output folders are checked using actual create/write/rename/cleanup operations. A failure returns to settings with the output path selected. Choose a writable folder and retry. If File Explorer can write there, the current process may be restricted; close it and double-click the launcher. Changing system folder permissions is unnecessary. |
+| `[WinError 5] 拒绝访问` / Access denied | 程序预先检查结果目录和成功/失败子目录的创建、写入、重命名及临时文件清理。失败后返回设置并选中结果路径；换一个可写目录后重新开始。若同一目录在资源管理器中可写，可能是当前启动进程受限，关闭旧窗口并双击 `启动旧版.cmd`。不必为此修改系统目录权限。 / Output folders are checked using actual create/write/rename/cleanup operations. A failure returns to settings with the output path selected. Choose a writable folder and retry. If File Explorer can write there, the current process may be restricted; close it and double-click the launcher. Changing system folder permissions is unnecessary. |
 | OpenCV 缺少 `ml.RTrees_create` | 当前解释器的 OpenCV 不兼容。使用启动器自动准备 OpenCV 4.x 独立环境；直接运行脚本也会检测并切换环境。 / The active OpenCV build is incompatible. The launcher prepares an isolated OpenCV 4.x environment; direct execution also detects the issue and switches environments. |
-| 初次下载的目录没有 `.crop-env` / Fresh download has no `.crop-env` | 这是正常情况，双击 `启动裁剪.cmd` 即可创建并安装；只安装可用 `安装环境.cmd`。 / This is expected; the launcher creates/installs it, or use the setup-only entry point. |
-| 双击 `.py` 打开编辑器或选择程序 / Double-clicking `.py` opens an editor or app picker | Windows 尚未将 Python 文件关联到解释器。使用 `启动裁剪.cmd`，或在终端运行 `python screen_crop.py`。 / Windows has no interpreter association for Python files. Use the `.cmd` launcher or run `python screen_crop.py` in a terminal. |
+| 初次下载的目录没有 `.crop-env` / Fresh download has no `.crop-env` | 这是正常情况，双击 `启动旧版.cmd` 即可创建并安装；只安装可用 `安装旧版环境.cmd`。 / This is expected; the launcher creates/installs it, or use the setup-only entry point. |
+| 双击 `.py` 打开编辑器或选择程序 / Double-clicking `.py` opens an editor or app picker | Windows 尚未将 Python 文件关联到解释器。使用 `启动旧版.cmd`，或在终端运行 `python screen_crop.py`。 / Windows has no interpreter association for Python files. Use the `.cmd` launcher or run `python screen_crop.py` in a terminal. |
 | 缺少模型或特征版本不一致 / Missing or mismatched model | 自动识别需要与代码匹配的三个模型文件（JSON 元数据和两份压缩权重）；将同一版本的代码与模型放在一起。 / Automatic detection needs all three model files (JSON metadata and two compressed forests) matching the code; keep files from the same version together. |
 | 原有结果没有变化 / Existing crops do not change | 已有输出默认跳过，重新处理时使用 `--overwrite`。 / Existing outputs are skipped; use `--overwrite` to regenerate them. |
 | 深黑边缘、严重反光或目标太小 / Very dark edges, strong reflections, or tiny targets | 候选生成或边缘定位可能失败，使用 `--review`、`--manual` 或失败补裁。 / Proposal generation or edge localization may fail; review, select corners manually, or retry failures. |
@@ -402,3 +454,5 @@ Exit codes: `0` means no processing errors, `1` indicates image-processing error
 项目总览见 [使用说明.md](../README.md)。
 
 For the project overview, see [使用说明.md](../README.md).
+
+</details>

@@ -1,6 +1,44 @@
-# 模型说明与历史评估 / Model card and historical evaluation
+# ScreenCrop 检测、模型与评估 / Detection, models and evaluation
 
-## 逐张审核补充模型 v0.11.2 / Review specialist
+**ScreenCrop 面向手持抖动拍摄的屏幕照片。只要目标外边界保留了足够线索，检测器就能尝试定位四角并裁切，带重影的照片也可在复核时手动校正。** 透视校正从原图采样，裁剪结果仍带有拍摄时的运动模糊；边界被拖影、反光掩盖或拍出画面时，需要人工判断是否重拍。
+
+A usable outer boundary can be localized even in motion-blurred screen photos. Difficult captures can be handled by manually refining the corners. Crops retain motion blur present in the original.
+
+## 原生桌面版 1.0.0
+
+默认的 Windows 入口使用 OpenCV 几何检测与规则分流。旧 Python 随机森林的权重、训练和评估见下方历史记录。
+
+### 拖影下的定位与分流
+
+1. 在缩放检测图上，使用多阈值轮廓和线段提议边界。合并同向的断裂线段，并尝试组合四边。需要补找候选时，在锐化副本上重新生成边界提议。
+2. 用未增强的检测图给候选评分，检查四边支持率、对比度、外侧背景、细框和候选歧义。大图会尝试在两种尺度定位；两组有效四角差异较大时进入复核。规则分数衡量边界证据。
+3. 将选中的四角映射到原图。证据充分的候选可自动保存；边缘断裂、拖影较重或外框歧义较大的候选交给人工确认。有可用候选时保留预裁剪。校正使用透视变换和双线性采样。
+
+### 抖动回归与证据范围
+
+以下结果来自 [Crop.Verify](../desktop/Crop.Verify/Program.cs) 的同一张合成图，使用不同宽度的对角运动核。IoU 是候选与参考四边形的交并比，本项回归检查要求 IoU 大于 0.85。
+
+| 合成输入 | 边界 IoU | 分流 |
+| --- | ---: | --- |
+| 清晰图 | 0.9339 | 自动通过 |
+| 9 × 9 对角运动核 | 0.9236 | 自动通过 |
+| 19 × 19 对角运动核 | 0.9147 | 待复核，保留候选四角 |
+
+合成运动核描述测试图的生成条件。真实相机的运动方向、曝光、目标大小和反光会改变结果。上述三项分别验证清晰定位、抖动下仍可裁切、拖影加重时带候选进入复核。
+
+[原生版验证记录](../desktop/VALIDATION.md) 还包含 44 张开发诊断图片和另一个拍摄会话的 500 张原片。500 张中有 491 张与记录的参考框达到 IoU ≥ 0.85，306 张自动通过，其中 1 张低于该阈值。该会话与开发数据共享装置和相近环境，参考框多来自历史自动裁切和复核流程。指标表示与这些参考框的重叠程度，跨设备表现和图像解码质量仍待单独评估。
+
+可从仓库根目录运行以下命令复现合成回归。
+
+```powershell
+dotnet run --project desktop/Crop.Verify/Crop.Verify.csproj -c Release
+```
+
+## 旧版 Python 模型与历史评估
+
+旧版训练过通用随机森林和用于困难场景的补充模型。v0.3.0 对反光小目标训练时使用了运动模糊和透视扰动，v0.9.0 又为拖影补充检测候选。历史结果对应各自的样本、权重与版本。旧版操作见 [使用指南](USAGE.md#旧版-python)，复评方法见 [训练说明](TRAINING.md)。
+
+### 逐张审核补充模型 v0.11.2 / Review specialist
 
 使用 54 张照片训练：44 张采用自动细框生成的候选标签并经缩略图检查，另 10 张按图像近似标注。加入反光增强后，实际采用 102 个原图或增强样本。留出 22 张照片：4 张使用近似标注，其余使用自动框作为参考并经缩略图检查。所有照片来自同一拍摄场景，不能代表跨场景准确率；自动框也不是独立人工真值。以 IoU ≥ 0.85 为阈值，正方形模式旧方法为 14/22，保守接入后为 16/22；原有 16 个合成场景的达标数保持 16/16。仅当普通结果明显过小，且细框与补充模型高度一致时才替换建议框，仍需逐张确认。
 
@@ -8,7 +46,7 @@ Trained on 54 photos: 44 provisionally labeled by the frame detector and inspect
 
 补充权重 SHA-256 / Specialist SHA-256: `27cc52a14882902bde677d4d109cb7007c7532be1db127f1fb0796220baf6d89`.
 
-## 用途 / Intended use
+### 用途 / Intended use
 
 定位拍摄屏幕中显示的完整图片，产生四角用于裁剪和透视校正。原森林主要用于彩色内容，v0.2.0 对灰度和低对比度候选补充四边/纹理证据。模型为候选四边形评分，不是语义分割或去模糊模型。
 
@@ -30,7 +68,7 @@ Locate complete pictures displayed in photographed screens and provide corners f
 
 Weights are loaded directly from the compressed file. Feature names/order are defined jointly by `screen_crop.py` and `screen_crop_model.json`. The base forest retains these weights in v0.3.0; the new reflection forest is described below.
 
-## 检测流程 / Detection pipeline
+### 检测流程 / Detection pipeline
 
 1. 处理 EXIF 方向，缩放检测副本到最长边不超过 1400 像素，并抑制部分稀疏黄色标线。 / Correct EXIF orientation, resize the detection copy to a maximum dimension of 1400 pixels, and suppress some sparse yellow annotation components.
 2. 结合颜色、CLAHE 对比度增强、Canny、多阈值及纹理检测生成四边形；部分候选通过单边延伸补全。 / Combine color, CLAHE, Canny, multiple thresholds, and texture to generate quadrilaterals, with single-side extensions for selected proposals.
@@ -42,7 +80,7 @@ Weights are loaded directly from the compressed file. Feature names/order are de
 
 Automatic refinement includes an inward adjustment of about 0.5–2 detection pixels to reduce interpolation fringes. Dark rows/columns inside the picture are preserved by default. Annotation suppression affects detection only; exported pixels come from the source image.
 
-## 训练来源 / Training provenance
+### 训练来源 / Training provenance
 
 原项目随附训练记录描述了 27 个训练输入：13 张唯一截图中的 9 张、此前 4 张暗色人物照片、6 个仅来自训练图片的亮度/尺寸/宽高比增强样本、8 个合成场景。另 4 张截图留作验证，不参与模型拟合。
 
@@ -52,7 +90,7 @@ The original training record describes 27 inputs: 9 of 13 unique screenshots, 4 
 
 Yellow outlines were used to read corner labels; the reported fitting and quantitative evaluation used annotation-cleaned copies. Labels were not inputs to proposal generation/scoring. Original photos and complete augmentation/synthetic inputs and generators are not distributed, so the original training cannot be fully reproduced from this repository alone.
 
-## 历史对比 / Historical comparison
+### 历史对比 / Historical comparison
 
 IoU 为预测区域与标注区域的交并比，达标线为 IoU ≥ 0.85。数据来自原始逐张对比表，公开版仅保留样本 ID、分组和指标，见 [evaluation.csv](evaluation.csv)。
 
@@ -68,7 +106,7 @@ IoU measures intersection-over-union between predicted and labeled regions; pass
 
 Training and validation share some scenes/content, and validation results were inspected during development, so this is not an independent blind test. The sample is small and corner labels contain pixel-level uncertainty; these figures do not estimate accuracy on arbitrary new images. Synthetic tests are software regression checks, not a new real-world accuracy evaluation.
 
-## v0.2.0 合成回归 / Synthetic regression
+### v0.2.0 合成回归 / Synthetic regression
 
 使用 [场景生成器](../examples/recognition_scenes.py) 与相同权重比较 v0.1.1 和 v0.2.0。8 类场景包括彩色、正方形、灰度、灰度正方形、暗色、模糊、小目标、低对比度。阈值开发使用种子 11、29，验证使用 41、67。验证组 IoU ≥ 0.85 达标数从 10/16 提升到 16/16，平均 IoU 从 61.0% 提升到 97.7%。逐张记录见 [recognition-v020.csv](recognition-v020.csv)。
 
@@ -87,7 +125,7 @@ v0.2.0 未重新训练权重。验证与开发共享场景生成方式，样本�
 
 Weights were not retrained for v0.2.0. Development and verification share the scene generator and the sample is small. No new independent real-photo test was performed; the 13 historical originals are unavailable for reevaluation, so the historical table was not recomputed. These results verify behavior on synthetic scenes and must not be advertised as real-world accuracy.
 
-## v0.3.0 反光小目标训练 / Reflection specialist training
+### v0.3.0 反光小目标训练 / Reflection specialist training
 
 针对反光屏幕中占比很小的图片，新增独立森林 `screen_crop_reflection.xml.gz`，通用森林保持原样。两份森林各 240 棵树、24 个特征。补充模型只接管面积 ≤ 3.5%、预测 IoU ≥ 0.72 的候选；其余沿用通用选择。该门槛是回归分数，非成功概率。若细化后的可计算特征让补充模型评分下降超过 0.005，则保留细化前四角，减轻内部纹理/反射强边缘导致的误内缩。
 
@@ -114,7 +152,7 @@ The user confirmed corners in 12 cyan-annotated screenshots corresponding to 11 
 
 Glare uses an elliptical gradient with strength 0.22–0.46. Motion blur uses randomly oriented 5/7/9-pixel kernels. Combined variants add perspective perturbations of approximately ±0.8% of image dimensions and transform labels accordingly. Variants use copies up to 1400 pixels without altering originals. [Augmentation/training code](../train_screen_model.py) is public; private photos and coordinates are excluded.
 
-## v0.3.0 对比结果 / Comparison results
+### v0.3.0 对比结果 / Comparison results
 
 比较 v0.2.1 与 v0.3.0，检测输入最长边 1400 像素；这些目标原本为正方形，均启用正方形候选参考。采用双精度凸多边形 IoU，达标线 IoU ≥ 0.85。逐张匿名数据见 [reflection-v030.csv](reflection-v030.csv)。原照片与增强分别统计，不能将 33 个衍生样例算作新照片。
 
@@ -140,7 +178,7 @@ All 16 existing synthetic checks across eight categories and seeds 41/67 pass. F
 
 See [TRAINING.md](TRAINING.md) for evaluation commands. Augmentation, fitting, and anonymous metrics are inspectable; absent private originals prevent full reproduction of the real-photo portion from public files alone. Robustness improvements concern localization and do not restore details obscured by glare or blur.
 
-## v0.5.0 浅色背景完整边界 / Whole-picture borders on light backgrounds
+### v0.5.0 浅色背景完整边界 / Whole-picture borders on light backgrounds
 
 本次改进检测与评分流程，两个随机森林权重保持原 SHA-256，没有新增拟合权重。新增 [white_border.py](../white_border.py) 在最长边 700 像素副本上估计每个颜色通道的二次光照曲面，迭代保留残差较小的 65% 网格点拟合背景；亮度覆盖与背景残差不满足条件时直接走通用检测。
 
@@ -158,7 +196,7 @@ Qualified whole-picture regions precede small-target proposals, avoiding clock/s
 
 The general path batches four-side pixel/gradient/texture samples, combines repeated percentile work, and reuses evidence across proposal generation, refinement, and rescoring. Feature order is unchanged; differences are floating-point rounding scale. Per-photo IoU on the eleven reflection originals is unchanged.
 
-### 评估范围 / Evaluation scope
+#### 评估范围 / Evaluation scope
 
 用户确认了 5 张截图的目标边界：第一张小框是误检，应提取整张建筑；其余四张为完整图片边界。通过特征匹配映射到未标线原照片，目标相关系数为 0.952–0.998，并人工查看映射图。截图只用于标签，识别输入均为原照片。5 张都用于开发，不能作为独立验证。
 
@@ -182,7 +220,7 @@ Passing means IoU ≥ 0.85. Times are per-photo medians of three calls, then gro
 
 See [anonymous per-photo metrics](white-border-v050.csv). Additional cases `white_check_06`, `07`, `09`, and `12` remain below threshold: numbers/code, a sparse heading, a chart, and a text heading. Exact blank margins may be impossible to infer without a visible border; select corners manually. All sixteen earlier synthetic checks pass; see [recognition-v050.csv](recognition-v050.csv). New synthetic tests cover white frames, a faint side, text pages, portraits, flat panels, and ambiguous multiple targets.
 
-### 复评与计时 / Reproduction and timing
+#### 复评与计时 / Reproduction and timing
 
 使用 [训练文档](TRAINING.md) 的标签格式，将旧脚本和匹配模型放在独立目录。以下命令默认每图重复 3 次，输出路径必须尚不存在：
 
@@ -197,7 +235,7 @@ python -m unittest discover -s tests -p test_white_border.py -v
 
 Private originals and coordinates are excluded; full real-photo reproduction requires those files. The public [synthetic generator](../examples/white_border_scenes.py) uses no private images.
 
-## 限制 / Limitations
+### 限制 / Limitations
 
 - 灰度检测需要可辨认四边及内部纹理；平坦内容、文本面板或复杂背景可能漏检或误检。 / Grayscale detection needs distinguishable borders and interior texture; flat content, text panels, or complex backgrounds may be missed or misidentified.
 - 目标极小、靠近图像边缘、严重反光或边界不可区分时可能失败。 / Tiny targets, targets near image edges, glare, and indistinguishable borders can cause failure.
