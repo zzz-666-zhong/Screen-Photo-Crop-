@@ -1,47 +1,48 @@
-# ScreenCrop 使用指南 / Usage guide
+# ScreenCrop 1.2.4 使用指南 / Usage guide
 
-本页优先说明仓库默认的 Windows 原生桌面版。若要复现旧实验、执行固定坐标裁切或调用 Python 参数，请跳到 [旧版 Python](#旧版-python)。
+本页说明 Windows 原生版。用于复现实验的命令行、固定坐标裁切和旧模型参数见 [旧版 Python](#旧版-python)。
 
-## 1. 启动原生版
+## 1. 启动和新建批次
 
-双击 `启动裁剪.cmd`。已有构建位于 `desktop/artifacts/win-x64/ScreenCrop.exe`。首次从源码构建需要 Windows x64、.NET 10 SDK 和可访问的 NuGet；`安装环境.cmd` 可只构建而不启动。使用自包含发布包时，完整解压后双击 `ScreenCrop.exe`。
+1. 在 Windows x64 上双击 `启动裁剪.cmd`，或在完整自包含目录中运行 `ScreenCrop.exe`。首次构建需 .NET 10 SDK 和 NuGet。已从旧版本构建过的源码目录，更新后先运行 `安装环境.cmd`。
+2. 点击「新建批次」，用「选文件夹」或「选照片」导入，也可拖入文件夹或一张、多张照片。多文件导入时，同一批次的文件需位于同一磁盘。
+3. 选择新的结果目录。根据被拍摄内容本身是否为正方形，设置「目标图片为正方形」。启用「包含子文件夹」可递归处理选定目录。内切默认 `0`，导出尺寸默认保留校正后的原生分辨率。
+4. 如需 JPEG 质量、PNG 压缩、16 位 PNG、命名模板、检测模式或自定义长边，打开「高级输出与检测设置」。选择保留子目录时，结果沿用原照片的相对目录。自定义长边保持裁剪图宽高比。创建批次后设置随批次锁定。
+5. 点击「开始整批处理」。可在总览筛选状态、按文件名搜索。底部显示当前页和总页数，可下拉选页，或输入页码后按 `Enter` 或点击「跳转」。
 
-## 2. 建立批次
-
-1. 点击「新建批次」，用「浏览原照片」选择存有拍屏照片的文件夹，也可以将文件夹拖到原照片目录框。
-2. 用「浏览结果位置」选择另一个目录。首次处理建议使用新目录；继续上次处理请用「打开已有批次」。
-3. 根据屏幕里**被拍摄内容本身**选择是否勾选「目标图片为正方形」。普通横图或竖图请选择保留原生裁剪分辨率，避免固定方形尺寸拉伸画面。
-4. 开始时将「四边内切」设为 `0`，保留边缘内容。批次创建后，设置随记录锁定。需要另一套参数时，新建结果目录和批次。
-5. 点击「开始整批处理」。缩略图显示建议边界，右下角的小图显示可用的裁剪预览。「上一页」「下一页」、状态筛选和文件名搜索可帮助找到照片。
-
-## 3. 抖动画面怎么处理
+## 2. 抖动画面与照片复核
 
 | 拍摄情况 | 操作 |
 | --- | --- |
-| 有轻度拖影，外框四边仍清楚 | 正常跑整批。之后抽查「自动通过」，对照原图检查四个角是否贴合目标外框。 |
-| 边缘局部断开或有重影，仍能看出外框 | 打开「待复核」，放大检查沿拖影方向的边缘。以完整画面的外框为准，避开内部高对比度线条和拖影形成的重复边缘。必要时手动重选四角。 |
-| 无自动框，但仍能辨认四角 | 直接在原图上选四个角，等右侧出现预览后确认。 |
-| 强拖影或反光遮住关键边界，画面缺角或未拍完整 | 无法可靠判定边界时，可点击「标记拍摄失败」，根据记录安排重拍。 |
+| 有轻度拖影，四边仍清楚 | 正常跑整批，之后抽查「自动通过」。尤其检查沿拖影方向的角点和细边。 |
+| 重影、断边或弱边，仍能辨认目标外框 | 进入「待复核」，以完整外框为准。贴边、近拍或大角度照片可在新批次选「扩展搜索」，再检查候选。 |
+| 没有可用自动框，四角仍可辨认 | 在原图上选四个角，核对右侧预览后保存。 |
+| 关键边界被强拖影或反光盖住，或者目标已出框 | 选择合适的拍摄失败原因，按导出清单重拍。 |
 
-ScreenCrop 会校正裁出画面的透视，拍摄时形成的拖影仍保留在结果里。目标识别和画面清晰度需要分别检查。
+裁剪和透视校正从原图采样。结果中的运动拖影仍需单独检查。
 
-### 复核操作
+- 滚轮缩放、中键平移。拖动角点可微调。选中角点后，方向键移动 1 个原图像素，`Shift` 加方向键移动 10 个像素，`Ctrl+Tab` 切换角点。
+- 「换候选框」会在可用候选之间切换。「角点工具」提供放大镜、重选一个或全部角点、旋转成图 90°、撤销和重做。`F` 适应窗口，`Ctrl+Z` 撤销，`Ctrl+Y` 重做。
+- 核对右侧预览后点击「确认保存并下一张」，或在画布按 `Enter`。可用「上一张」「下一张」回看，或从总览「继续复核」恢复位置。
+- 批量确认前请核对每个选中的候选。「确认所选」会先显示总数量，完成后可查看成功、跳过和失败情况。
 
-- 滚轮缩放，中键拖动平移。拖动角点微调，或点击原图重新选择四个目标角。按 `F` 或用「适应窗口」回到全图视野，`Ctrl+Z` 撤销最近加入的角点。
-- 「重新识别」可为当前图再次生成建议。确认右侧预览完整后，点击「确认保存并下一张」或按 `Enter`。「暂时跳过」可保留这张待以后处理。
-- 批量确认前，先逐张核对选中的候选。例如，筛选「待复核」后勾选已经检查过的有效候选，再点击「确认所选」。
-- 「处理失败」用于读图、写入等程序错误；「标记拍摄失败」是对照片质量的人工判断。原图保持在输入目录，已有裁剪可移入 `已排除/`。
+## 3. 拍摄失败与报表
 
-## 4. 暂停、恢复和结果
+1. 在复核页选择「拍摄失败原因」，点击「标记拍摄失败并下一张」。例如，严重模糊、反光遮挡、目标缺失或未拍完整。程序在结果目录 `拍摄失败/` 保存原照片副本。
+2. 点击「导出拍摄失败表」生成 `拍摄失败记录.csv`，供 Excel 打开。没有待重拍照片时，仍可导出只有表头的表。
+3. 对原照片重新确认裁剪后，历史记录会标记为「已重裁」，归档副本仍可追溯。「批次工具 → 导出拍摄失败历史」可导出含已重裁项的单独 CSV。若提示「更新拍摄失败表」，请重新导出当前清单。
+4. 「处理错误」记录文件读写、格式、磁盘空间等程序问题。按提示修正后点击「重试处理错误」。若表格被 Excel 占用，关闭相关表格后用「批次工具 → 更新批次报表」重试。
 
-- 点「暂停」后，程序会先完成当前照片并记录进度。退出后，用「打开已有批次」选择含 `batch_session.json` 的结果目录，点击「继续处理未完成照片」。
-- 保存记录使用原相对路径和 SHA-256。若移走或改动了原图或已保存结果，请先检查路径与文件内容。对没有现有输出的处理错误，修正原因后可用「重试失败」。
-- 「裁剪成功」含已自动保存和人工确认的 PNG；「待复核」的预裁剪用于检查。通过「打开结果」定位目录。
-- 用 Excel 打开 `crop_report.csv` 查看整批状态和原因；整理训练标签时使用 `crop_labels.json` 中的 `confirmed` 字段。报告计算总成功率时，以输入照片数为分母，并注明待复核和拍摄失败的数量。
+## 4. 暂停、恢复与备份
+
+- 「暂停」或退出时，正在处理的照片会先落盘并记录进度。重新启动时打开包含 `batch_session.json` 的结果目录，点击「继续处理」运行未处理项。
+- 保留结果目录中的批次文件、`.screen-crop-journal/` 和可能存在的 `.screen-crop-pending/`。把原图或结果目录搬到新位置时，用「批次工具 → 重新定位批次」校验后继续。
+- 一个批次可以在不同窗口查看，写入时有排他锁和版本校验。若另一个窗口已更新批次，先「刷新批次」再操作。若已保存结果在程序外被修改，请对照提示检查文件，再决定是否覆盖。
+- 「导出批次备份 ZIP」打包批次记录、原照片和结果。`crop_report.csv` 查看全批状态，`crop_labels.json` 的 `confirmed` 表示人工确认。备份和报表含照片信息，分享前请检查内容。
 
 ### English quick start
 
-Launch `启动裁剪.cmd` from the complete repository, or run `ScreenCrop.exe` from a complete self-contained build. Select source and result folders, choose square only when the photographed target is square, and run the batch. For shaky captures, inspect the outer corners, especially in the direction of motion blur. Refine uncertain proposals in the review queue, or pick four corners manually when they remain visible. If motion blur or glare hides the relevant borders, mark the capture as rejected and retake it. A crop preserves blur from the source.
+Launch `启动裁剪.cmd` or open the complete Windows x64 build. Import a photo folder or selected files, choose a result folder, and run the batch. Review weak or motion-blurred borders with the corner magnifier and alternate proposals. Use the page picker to navigate, and export a capture-failure CSV for retakes. The **Batch tools** menu can refresh a changed batch, relocate files, update reports, and export a backup. Perspective correction preserves blur in the source.
 
 ## 旧版 Python
 

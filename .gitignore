@@ -66,3 +66,8 @@ desktop.ini
 batch_session.json
 .batch.lock
 screen-crop.preferences.json
+**/拍摄失败/
+**/.screen-crop-journal/
+**/.screen-crop-pending/
+拍摄失败记录.csv
+拍摄失败历史.csv

@@ -1,74 +1,30 @@
-# GitHub 发布指南 / Publishing to GitHub
+# ScreenCrop 发布指南 / Publishing
 
-项目作为包含源代码和预训练模型的仓库发布，不需要先制作安装程序或上传 PyPI。
+原生桌面版的版本号取自 `desktop/Crop.Desktop/Crop.Desktop.csproj`。发布新的桌面版本时，同步核对 `BatchSnapshot.CurrentVersion`、[更新记录](../CHANGELOG.md) 和验证记录。旧 Python 脚本的版本号用于对应历史实验。
 
-Publish this as a source-code repository with a pretrained model; an installer or PyPI package is not required.
+## Windows x64 自包含构建
 
-## 干净的项目目录 / Clean project directory
-
-`github-release/` 是从工作目录整理出来的精简发布副本。进入该目录后，根目录应直接包含 `screen_crop.py`、README、LICENSE 和三个模型文件（JSON 元数据和两份压缩权重）。不要把上一级的原图、历史结果或虚拟环境一起上传。
-
-`github-release/` is the clean release copy prepared from the working directory. Inside it, the root directly contains `screen_crop.py`, README, LICENSE, and all three model files (JSON metadata and two compressed forests). Do not upload the parent folder's photos, historical results, or virtual environments.
-
-## 创建仓库并推送 / Create a repository and push
-
-在 GitHub 上创建空仓库，例如 `screen-photo-crop`，不要额外初始化 README 或许可证。然后在精简项目根目录执行：
-
-Create an empty GitHub repository, for example `screen-photo-crop`, without adding a separate README or license. Then run from the clean project root:
+从干净的仓库根目录运行以下命令。
 
 ```powershell
-git init -b main
-git add .
-git status --short
-git commit -m "Release screen photo crop v0.11.1"
+dotnet run --project desktop/Crop.Verify/Crop.Verify.csproj -c Release
+dotnet publish desktop/Crop.Desktop/Crop.Desktop.csproj -c Release -r win-x64 --self-contained true -o desktop/artifacts/win-x64
 ```
 
-将下面的 `<YOUR_REPOSITORY_URL>` 替换为新仓库的 HTTPS 或 SSH 地址：
+解压或复制整个 `win-x64` 目录后即可运行 `ScreenCrop.exe`。如需上传 Windows 可运行附件，可将这个自包含目录整体压缩，保留所有 DLL、资源和许可证。
 
-Replace `<YOUR_REPOSITORY_URL>` with the HTTPS or SSH URL of your new repository:
+## 源码 ZIP
+
+[release-files.txt](../release-files.txt) 是源码归档的公开文件清单，包含原生项目和历史 Python 模型。Python 打包工具只用标准库。
 
 ```powershell
-git remote add origin "<YOUR_REPOSITORY_URL>"
-git push -u origin main
+python scripts/build_release.py
 ```
 
-使用你自己的 Git 用户名、邮箱及 GitHub 登录凭据。项目不包含作者账号或凭据。参见 [GitHub 导入本地代码指南](https://docs.github.com/en/migrations/importing-source-code/using-the-command-line-to-import-source-code/adding-locally-hosted-code-to-github)。
+当前版本的归档文件为 `dist/screen-photo-crop-v1.2.4.zip`，同时生成 `.zip.sha256` 和包内逐文件校验清单。新增项目文件或图标资源时，把对应路径加入清单。提交前用 `git diff --cached --name-only` 检查将要上传的文件，原照片、批次备份、失败清单、日志、本机配置和构建目录应留在本地。
 
-Use your own Git name/email and GitHub credentials. No account or credentials are embedded in the project. See [GitHub's local-code import guide](https://docs.github.com/en/migrations/importing-source-code/using-the-command-line-to-import-source-code/adding-locally-hosted-code-to-github).
+## GitHub 校验与附件
 
-两份权重分别约 36 MiB 和 25.4 MiB，超过网页上传的单文件 25 MiB 上限，但低于普通 Git 的 100 MiB 限制。请用 Git 推送；当前模型无需 Git LFS。依据 [GitHub 官方限制](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github)。
+推送后可在 Actions 查看原生桌面构建与核心回归，以及旧版 Python 测试和源码打包。创建 GitHub Release 时，可提供源码归档及校验文件，也可另附 Windows x64 自包含 ZIP。随附说明可参考 [更新记录](../CHANGELOG.md)。
 
-The two forests are about 36 MiB and 25.4 MiB each, exceeding the 25 MiB browser-upload limit but below the 100 MiB regular Git limit. Push using Git; this model does not require Git LFS. See [GitHub's official limits](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github).
-
-## 测试与打包 / Test and package
-
-按 README 安装环境后，在项目根目录执行：
-
-After setting up the environment as described in the README, run:
-
-```powershell
-.\.crop-env\Scripts\python.exe -m unittest discover -s tests -v
-.\.crop-env\Scripts\python.exe scripts/build_release.py
-```
-
-macOS/Linux 使用 `.crop-env/bin/python`。打包脚本本身仅需 Python 标准库，也可单独使用 `python scripts/build_release.py`。同版本文件已存在时，加 `--overwrite`。
-
-Use `.crop-env/bin/python` on macOS/Linux. The packager itself uses only the standard library, so it can also run with `python scripts/build_release.py`. Add `--overwrite` to replace an existing release of the same version.
-
-输出 `dist/screen-photo-crop-v0.11.1.zip` 及 `.zip.sha256`。ZIP 内附逐文件 SHA-256 清单。发布内容由 [release-files.txt](../release-files.txt) 明确列出，原图、虚拟环境、历史结果及临时文件不会进入包中。
-
-This produces `dist/screen-photo-crop-v0.11.1.zip` and `.zip.sha256`, with a per-file SHA-256 manifest inside the ZIP. [release-files.txt](../release-files.txt) explicitly lists public files; source photos, environments, historical results, and temporary files are excluded.
-
-## Actions 与 Release / Actions and release
-
-推送后查看 Actions 中的 `Test and package`。工作流配置了 Windows/Linux 与 Python 3.10/3.12 测试，通过后构建下载附件。配置需要在自己的仓库实际运行；本地测试通过不等于 GitHub 托管测试已通过。
-
-After pushing, inspect `Test and package` in Actions. It is configured for Windows/Linux with Python 3.10/3.12 and builds a downloadable artifact after tests pass. It must run in your repository; local results do not imply hosted CI has passed.
-
-创建 `v0.11.1` Release，附上 ZIP、`.sha256` 和版本说明。工作流不会自动公开 Release。说明可参考 [CHANGELOG.md](../CHANGELOG.md)。后续发布更新 `screen_crop.py` 的 `__version__`、变更记录、文档版本和文件清单；修改权重时同步模型说明及评估。
-
-Create a `v0.11.1` release with the ZIP, `.sha256`, and release notes from [CHANGELOG.md](../CHANGELOG.md). The workflow does not publish a public release automatically. For later releases, update `__version__` in `screen_crop.py`, the changelog, documentation versions, and file list; model updates also require model-card and evaluation updates.
-
-Suggested description: `Crop pictures from photographed screens with perspective correction, a pretrained model, and manual review.`
-
-Suggested topics: `python`, `opencv`, `image-processing`, `perspective-correction`, `screen-photo`, `batch-processing`.
+The self-contained Windows build uses .NET 10 and publishes with both runtime binaries and license notices. The Python packaging script builds the allowlisted source archive, including the historical model files. Keep private photos and batch outputs outside the published source.

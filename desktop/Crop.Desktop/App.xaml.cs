@@ -11,9 +11,23 @@ public partial class App : Application
     {
         base.OnStartup(e);
         DispatcherUnhandledException += (_,args) => { MessageBox.Show(args.Exception.Message,"操作未完成",MessageBoxButton.OK,MessageBoxImage.Error);args.Handled=true; };
-        var window=new MainWindow();MainWindow=window;
         int capture=Array.IndexOf(e.Args,"--screenshot");
-        if(capture>=0){window.Left=-12000;window.Top=0;window.ShowInTaskbar=false;window.WindowStartupLocation=WindowStartupLocation.Manual;}
+        string? testPreferences = capture >= 0 && capture + 1 < e.Args.Length
+            ? Path.Combine(Path.GetDirectoryName(Path.GetFullPath(e.Args[capture + 1]))!, ".test-preferences.json")
+            : null;
+        var window=new MainWindow(testPreferences);MainWindow=window;
+        if (capture >= 0)
+        {
+            window.Left = -12000;
+            window.Top = 0;
+            window.ShowInTaskbar = false;
+            window.WindowStartupLocation = WindowStartupLocation.Manual;
+            if (e.Args.Contains("--minimum-size"))
+            {
+                window.Width = window.MinWidth;
+                window.Height = window.MinHeight;
+            }
+        }
         window.Show();
         int open=Array.IndexOf(e.Args,"--open");
         if(open>=0&&open+1<e.Args.Length)await window.OpenBatchAsync(e.Args[open+1]);
@@ -23,6 +37,8 @@ public partial class App : Application
             {
                 int verify=Array.IndexOf(e.Args,"--verify-ui");
                 if(verify>=0&&verify+1<e.Args.Length)await window.VerifyWorkflowAsync(e.Args[verify+1]);
+                int paging = Array.IndexOf(e.Args, "--verify-pagination");
+                if (paging >= 0 && paging + 1 < e.Args.Length) window.VerifyPagination(e.Args[paging + 1]);
                 if(e.Args.Contains("--edit-first"))await window.OpenFirstAsync();
                 await Task.Delay(600);await Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);
                 window.UpdateLayout();

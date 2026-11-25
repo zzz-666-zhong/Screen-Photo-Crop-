@@ -72,6 +72,11 @@ desktop/Crop.Desktop/CornerSurface.cs
 desktop/Crop.Desktop/Crop.Desktop.csproj
 desktop/Crop.Desktop/MainWindow.xaml
 desktop/Crop.Desktop/MainWindow.xaml.cs
+desktop/Crop.Core/BatchLedger.cs
+desktop/Crop.Desktop/OutputSettingsWindow.cs
+desktop/Crop.Desktop/RoundedClipBorder.cs
+desktop/Crop.Desktop/ScreenCrop-Sidebar.png
+desktop/Crop.Desktop/ScreenCrop.ico
 desktop/Crop.Verify/Crop.Verify.csproj
 desktop/Crop.Verify/Program.cs
 README.legacy.md

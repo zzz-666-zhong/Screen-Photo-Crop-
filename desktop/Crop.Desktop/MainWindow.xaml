@@ -1,87 +1,476 @@
-<Window x:Class="Crop.Desktop.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:Crop.Desktop" Title="切屏 · 批量裁剪工作台" Width="1460" Height="920" MinWidth="1180" MinHeight="760" Foreground="{StaticResource Ink}" Background="#F5F5EF" FontFamily="Microsoft YaHei UI" FontSize="13" WindowStartupLocation="CenterScreen" Closing="Window_Closing">
- <Window.Resources><local:ThumbConverter x:Key="Thumb"/><local:BoundaryThumbConverter x:Key="BoundaryThumb"/><local:StateBrushConverter x:Key="StateBrush"/></Window.Resources>
- <Grid Background="#F5F5EF">
-  <Grid.ColumnDefinitions><ColumnDefinition Width="266"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-  <Border Background="#252E29" Padding="22,28,22,20">
-   <Grid>
-    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-    <StackPanel>
-     <TextBlock Text="切 屏" FontSize="27" FontWeight="SemiBold" Foreground="#F3F4EC"/>
-     <TextBlock Text="SCREEN CROP / 01" Margin="0,5,0,30" FontSize="10" Foreground="#A8B2A7"/>
-     <Button Content="＋  新建批次" Click="New_Click" HorizontalContentAlignment="Left" Background="#35463A" Foreground="White" BorderThickness="0" Margin="0,0,0,8"/>
-     <Button Content="打开已有批次" Click="Open_Click" Background="Transparent" Foreground="#D6DED2" BorderBrush="#526052"/>
-     <Border Height="1" Background="#485448" Margin="0,26,0,24"/>
-     <TextBlock Text="批次设置" Foreground="#B8C2B6" FontSize="11" Margin="0,0,0,15"/>
-     <StackPanel x:Name="SetupPanel">
-      <TextBlock Text="原照片目录" Foreground="#D6DED2" Margin="0,0,0,7"/>
-      <TextBox x:Name="SourceBox" AllowDrop="True" Drop="Path_Drop" ToolTip="拖入照片文件夹，或点击浏览"/>
-      <Button Content="浏览原照片" Click="Source_Click" Padding="8,7" Margin="0,7,0,18" Background="#354039" Foreground="#D6DED2" BorderThickness="0"/>
-      <TextBlock Text="结果目录" Foreground="#D6DED2" Margin="0,0,0,7"/>
-      <TextBox x:Name="OutputBox"/>
-      <Button Content="浏览结果位置" Click="Output_Click" Padding="8,7" Margin="0,7,0,20" Background="#354039" Foreground="#D6DED2" BorderThickness="0"/>
-      <CheckBox x:Name="SquareBox" Content="目标图片为正方形" IsChecked="True" Foreground="#D6DED2" Margin="0,0,0,12"/>
-      <CheckBox x:Name="RecursiveBox" Content="包含子文件夹" Foreground="#D6DED2" Margin="0,0,0,20"/>
-      <TextBlock Text="导出尺寸" Foreground="#D6DED2" Margin="0,0,0,7"/>
-      <ComboBox x:Name="SizeBox" SelectedIndex="0" Margin="0,0,0,16"><ComboBoxItem Content="保留原生裁剪分辨率" Tag="0"/><ComboBoxItem Content="128 × 128" Tag="128"/><ComboBoxItem Content="256 × 256" Tag="256"/><ComboBoxItem Content="400 × 400" Tag="400"/><ComboBoxItem Content="512 × 512" Tag="512"/></ComboBox>
-      <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="65"/></Grid.ColumnDefinitions><TextBlock Text="四边内切 / 原图像素" Foreground="#D6DED2" VerticalAlignment="Center" FontSize="11"/><TextBox x:Name="InsetBox" Grid.Column="1" Text="0"/></Grid>
-     </StackPanel>
-     <TextBlock x:Name="LockedHint" Text="本批参数已锁定。&#10;新建批次可选择新的目录与参数。" Foreground="#A8B2A7" TextWrapping="Wrap" Margin="0,18,0,0" Visibility="Collapsed" FontSize="11"/>
-    </StackPanel>
-    <StackPanel Grid.Row="2"><TextBlock Text="本地处理 · 不依赖模型" Foreground="#D6DED2" FontSize="11"/><TextBlock Text="逐图定位，整批运行，疑难集中复核。" Foreground="#9DAA9B" FontSize="10" Margin="0,7,0,0" TextWrapping="Wrap"/></StackPanel>
-   </Grid>
-  </Border>
-  <Grid Grid.Column="1" Margin="28,24,28,18">
-   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-   <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-    <StackPanel><TextBlock Text="批量裁剪工作台" FontSize="25" FontWeight="SemiBold"/><TextBlock x:Name="Subtitle" Text="把时间留给疑难照片" Foreground="{StaticResource Muted}" Margin="0,6,0,0"/></StackPanel>
-    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><Button x:Name="ResultsButton" Content="打开结果" Click="Results_Click" Margin="0,0,8,0" IsEnabled="False"/><Button x:Name="RunButton" Content="开始整批处理  →" Click="Run_Click" Style="{StaticResource Primary}"/><Button x:Name="PauseButton" Content="暂停" Click="Pause_Click" Visibility="Collapsed"/></StackPanel>
-   </Grid>
-   <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="9" Margin="0,24,0,18" Padding="22,18">
-    <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
-     <StackPanel><TextBlock Text="批次照片" Foreground="{StaticResource Muted}" FontSize="11"/><TextBlock x:Name="TotalText" Text="—" FontSize="28" Margin="0,6,0,0"/></StackPanel>
-     <StackPanel Grid.Column="1"><TextBlock Text="自动通过" Foreground="{StaticResource Muted}" FontSize="11"/><TextBlock x:Name="AutoText" Text="0" FontSize="28" Margin="0,6,0,0"/></StackPanel>
-     <StackPanel Grid.Column="2"><TextBlock Text="等待复核" Foreground="{StaticResource Muted}" FontSize="11"/><TextBlock x:Name="ReviewText" Text="0" Foreground="#B36A20" FontSize="28" Margin="0,6,0,0"/></StackPanel>
-     <StackPanel Grid.Column="3"><TextBlock Text="人工确认 / 失败" Foreground="{StaticResource Muted}" FontSize="11"/><TextBlock x:Name="ConfirmedText" Text="0 / 0" FontSize="28" Margin="0,6,0,0"/></StackPanel>
+<Window x:Class="Crop.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Crop.Desktop"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        xmlns:media="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options"
+        Title="ScreenCrop · 批量裁剪工作台" Icon="ScreenCrop.ico"
+        Width="1380" Height="860" MinWidth="1050" MinHeight="650"
+        Style="{StaticResource WindowTypography}" Background="Transparent" UseLayoutRounding="True"
+        WindowStartupLocation="CenterScreen" Closing="Window_Closing" AllowDrop="True" Drop="Path_Drop">
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="40" ResizeBorderThickness="8"
+                            GlassFrameThickness="0,64,0,0" UseAeroCaptionButtons="True"/>
+    </shell:WindowChrome.WindowChrome>
+    <Window.Resources>
+        <local:ThumbConverter x:Key="Thumb"/>
+        <local:BoundaryThumbConverter x:Key="BoundaryThumb"/>
+        <local:StateBrushConverter x:Key="StateBrush"/>
+        <LinearGradientBrush x:Key="SidebarSurface" media:Freeze="True" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#E9FBFCF5" Offset="0"/>
+            <GradientStop Color="#E5E9F0E4" Offset="0.55"/>
+            <GradientStop Color="#F0DFE9DC" Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="GlassSurface" media:Freeze="True" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#F9FFFFFF" Offset="0"/>
+            <GradientStop Color="#CEF9FBF7" Offset="0.36"/>
+            <GradientStop Color="#ABEBF0E6" Offset="0.88"/>
+            <GradientStop Color="#DBF8FCF5" Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="GlassRim" media:Freeze="True" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#FFFFFF" Offset="0"/>
+            <GradientStop Color="#F5F8EF" Offset="0.32"/>
+            <GradientStop Color="#CDD8C9" Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="SidebarPrimarySurface" media:Freeze="True" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#F0F7EE" Offset="0"/>
+            <GradientStop Color="#D7E7D5" Offset="1"/>
+        </LinearGradientBrush>
+        <RadialGradientBrush x:Key="SageLight" media:Freeze="True" Center="0.12,0" GradientOrigin="0.12,0"
+                             RadiusX="0.66" RadiusY="0.98">
+            <GradientStop Color="#B9CADDC9" Offset="0"/>
+            <GradientStop Color="#60D3E3D0" Offset="0.55"/>
+            <GradientStop Color="#00D3E3D0" Offset="1"/>
+        </RadialGradientBrush>
+        <RadialGradientBrush x:Key="WarmLight" media:Freeze="True" Center="0.58,0.08" GradientOrigin="0.58,0.08"
+                             RadiusX="0.43" RadiusY="0.92">
+            <GradientStop Color="#BBFFF0D3" Offset="0"/>
+            <GradientStop Color="#00FFF0D3" Offset="1"/>
+        </RadialGradientBrush>
+        <LinearGradientBrush x:Key="CaptionSurface" media:Freeze="True" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#DFFFFFFF" Offset="0"/>
+            <GradientStop Color="#79FAFCF7" Offset="0.27"/>
+            <GradientStop Color="#55C9D7C7" Offset="0.86"/>
+            <GradientStop Color="#A7FFFFFA" Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="CaptionGlint" media:Freeze="True" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#00FFFFFF" Offset="0"/>
+            <GradientStop Color="#E8FFFFFF" Offset="0.19"/>
+            <GradientStop Color="#4CFFFFFF" Offset="0.68"/>
+            <GradientStop Color="#00FFFFFF" Offset="1"/>
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="SidebarInk" Color="#29392E"/>
+        <SolidColorBrush x:Key="SidebarMuted" Color="#526354"/>
+        <Style x:Key="SidebarButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource GlassSurface}"/>
+            <Setter Property="Foreground" Value="{StaticResource SidebarInk}"/>
+            <Setter Property="BorderBrush" Value="#D0DACB"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        </Style>
+        <Style x:Key="StatButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource GlassSurface}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource GlassRim}"/>
+            <Setter Property="Padding" Value="14,10"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+        </Style>
+        <Style x:Key="StatLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+        </Style>
+        <Style x:Key="StatValue" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource NumberFont}"/>
+            <Setter Property="FontSize" Value="28"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Typography.NumeralAlignment" Value="Tabular"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+            <Setter Property="Margin" Value="0,1,0,0"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Border Background="{StaticResource Canvas}" Margin="0,46,0,0"/>
+        <Grid x:Name="WorkspaceShell">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}" Value="Maximized">
+                            <Setter Property="Margin" Value="{Binding Path=(shell:WindowChrome.WindowChrome).ResizeBorderThickness,
+                                RelativeSource={RelativeSource AncestorType=Window}}"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="48"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="249"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.RowSpan="2" Grid.ColumnSpan="2" Background="{StaticResource SageLight}"
+                    Height="218" VerticalAlignment="Top" IsHitTestVisible="False"/>
+            <Border Grid.RowSpan="2" Grid.ColumnSpan="2" Background="{StaticResource WarmLight}"
+                    Height="182" VerticalAlignment="Top" IsHitTestVisible="False"/>
+
+            <Border Grid.ColumnSpan="2" Background="{StaticResource CaptionSurface}" BorderBrush="{StaticResource GlassRim}"
+                    BorderThickness="1" CornerRadius="12" Margin="11,5,0,0" Height="36"
+                    HorizontalAlignment="Left" VerticalAlignment="Top" Padding="5,2,13,2">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="29" Height="29" CornerRadius="8" Background="{StaticResource GlassSurface}"
+                            BorderBrush="{StaticResource GlassRim}" BorderThickness="1">
+                        <Image Source="ScreenCrop-Sidebar.png" Width="24" Height="24" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    </Border>
+                    <TextBlock Text="ScreenCrop" Margin="9,0,0,1" VerticalAlignment="Center" FontSize="20"
+                               TextOptions.TextFormattingMode="Ideal"
+                               FontFamily="{StaticResource NumberFont}" FontWeight="SemiBold" Foreground="{StaticResource SidebarInk}"/>
+                    <Border Width="1" Height="15" Background="#CBD6C8" Margin="13,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="批量裁剪工作台" Foreground="{StaticResource SidebarMuted}"
+                               VerticalAlignment="Center" FontSize="12" FontWeight="Medium"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.ColumnSpan="2" Background="{StaticResource CaptionGlint}" Height="1"
+                    VerticalAlignment="Bottom" Margin="12,0,12,1" IsHitTestVisible="False"/>
+
+            <Border Grid.Row="1" Background="#152A442B" CornerRadius="16" Margin="12,7,0,10" IsHitTestVisible="False"/>
+            <Border Grid.Row="1" Background="{StaticResource SidebarSurface}" BorderBrush="{StaticResource GlassRim}" BorderThickness="1"
+                    CornerRadius="16" Margin="12,5,0,12">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="2,4,2,4">
+                    <StackPanel Margin="15,13,15,14">
+                        <Button Content="新建批次" Click="New_Click" Style="{StaticResource SidebarButton}"
+                                Background="{StaticResource SidebarPrimarySurface}" BorderBrush="#C0D1BD" FontWeight="Medium" Margin="0,0,0,7"/>
+                        <Button Content="打开已有批次" Click="Open_Click" Style="{StaticResource SidebarButton}"/>
+                        <Button Content="批次工具 ▾" Click="BatchTools_Click" Style="{StaticResource SidebarButton}" Margin="0,7,0,0"/>
+                        <Border Height="1" Background="#CED9CC" Margin="0,15,0,12"/>
+                        <TextBlock Text="批次设置" Foreground="{StaticResource SidebarInk}" Style="{StaticResource Heading}"
+                                   FontSize="16" Margin="0,0,0,11"/>
+
+                        <StackPanel x:Name="SetupPanel">
+                            <Label Content="原照片目录" Target="{Binding ElementName=SourceBox}" Padding="0"
+                                   Foreground="{StaticResource SidebarMuted}" Margin="0,0,0,5"/>
+                            <TextBox x:Name="SourceBox" AllowDrop="True" Drop="Path_Drop" ToolTip="可拖入照片文件夹"/>
+                            <UniformGrid Rows="1" Margin="0,6,0,10">
+                                <Button Content="选文件夹" Click="Source_Click" Style="{StaticResource SidebarButton}" Padding="9,6" Margin="0,0,4,0"/>
+                                <Button Content="选照片" Click="Files_Click" Style="{StaticResource SidebarButton}" Padding="9,6" Margin="4,0,0,0"/>
+                            </UniformGrid>
+                            <Label Content="结果目录" Target="{Binding ElementName=OutputBox}" Padding="0"
+                                   Foreground="{StaticResource SidebarMuted}" Margin="0,0,0,5"/>
+                            <TextBox x:Name="OutputBox"/>
+                            <Button Content="浏览结果位置" Click="Output_Click" Style="{StaticResource SidebarButton}"
+                                    Padding="9,6" Margin="0,6,0,11"/>
+                            <CheckBox x:Name="SquareBox" Content="目标图片为正方形" IsChecked="True"
+                                      Foreground="{StaticResource SidebarInk}" Margin="0,0,0,7"/>
+                            <CheckBox x:Name="RecursiveBox" Content="包含子文件夹" Foreground="{StaticResource SidebarInk}" Margin="0,0,0,11"/>
+                            <Label Content="导出尺寸" Target="{Binding ElementName=SizeBox}" Padding="0"
+                                   Foreground="{StaticResource SidebarMuted}" Margin="0,0,0,5"/>
+                            <ComboBox x:Name="SizeBox" SelectedIndex="0" Margin="0,0,0,10">
+                                <ComboBoxItem Content="保留原生裁剪分辨率" Tag="0"/>
+                                <ComboBoxItem Content="128 × 128" Tag="128"/>
+                                <ComboBoxItem Content="256 × 256" Tag="256"/>
+                                <ComboBoxItem Content="400 × 400" Tag="400"/>
+                                <ComboBoxItem Content="512 × 512" Tag="512"/>
+                            </ComboBox>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="60"/></Grid.ColumnDefinitions>
+                                <Label Content="四边内切（像素）" Target="{Binding ElementName=InsetBox}" Padding="0"
+                                       Foreground="{StaticResource SidebarMuted}" VerticalAlignment="Center"/>
+                                <TextBox x:Name="InsetBox" Grid.Column="1" Text="0"/>
+                            </Grid>
+                            <Button Content="高级输出与检测设置" Click="Advanced_Click" Style="{StaticResource SidebarButton}" Margin="0,10,0,0"/>
+                        </StackPanel>
+                        <TextBlock x:Name="LockedHint" Text="批次参数已锁定。要调整参数，请新建批次。"
+                                   Foreground="{StaticResource SidebarMuted}" TextWrapping="Wrap" Margin="0,14,0,0" Visibility="Collapsed"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <Grid Grid.Row="1" Grid.Column="1" Margin="15,5,13,13">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Border Background="#102A442B" CornerRadius="15" Margin="0,2,0,10" IsHitTestVisible="False"/>
+                <Border Background="{StaticResource GlassSurface}" BorderBrush="{StaticResource GlassRim}" BorderThickness="1"
+                        CornerRadius="15" Padding="14,10" Margin="0,0,0,12">
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,12,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="WorkspaceTitle" Text="批量裁剪" FontSize="26"
+                                       Style="{StaticResource Heading}" TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+                            <TextBlock x:Name="Subtitle" Text="选择照片目录，或打开已有批次"
+                                       Foreground="{StaticResource Muted}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button x:Name="BackButton" Content="返回总览" Click="Back_Click" Visibility="Collapsed" Margin="0,0,7,0"/>
+                            <Button x:Name="ResultsButton" Content="打开结果" Click="Results_Click" Margin="0,0,7,0" IsEnabled="False"/>
+                            <Button x:Name="ExportFailuresButton" Content="导出拍摄失败表" Click="ExportFailures_Click"
+                                    IsEnabled="False" Margin="0,0,7,0" ToolTip="导出为 Excel 可打开的 CSV"/>
+                            <Button x:Name="RunButton" Content="开始整批处理" Click="Run_Click" Style="{StaticResource Primary}"/>
+                            <Button x:Name="PauseButton" Content="暂停" Click="Pause_Click" Visibility="Collapsed"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <UniformGrid x:Name="StatsPanel" Grid.Row="1" Rows="1" Columns="6" Margin="0,0,0,12">
+                    <Button Tag="0" Click="StatFilter_Click" Style="{StaticResource StatButton}" AutomationProperties.Name="筛选全部照片">
+                        <StackPanel><TextBlock Text="批次照片" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TotalText" Text="—" Style="{StaticResource StatValue}"/></StackPanel>
+                    </Button>
+                    <Button Tag="2" Click="StatFilter_Click" Style="{StaticResource StatButton}" AutomationProperties.Name="筛选自动通过">
+                        <StackPanel><TextBlock Text="自动通过" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="AutoText" Text="0" Style="{StaticResource StatValue}" Foreground="#52694A"/></StackPanel>
+                    </Button>
+                    <Button Tag="3" Click="StatFilter_Click" Style="{StaticResource StatButton}" AutomationProperties.Name="筛选人工确认">
+                        <StackPanel><TextBlock Text="人工确认" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="ManualText" Text="0" Style="{StaticResource StatValue}" Foreground="#52694A"/></StackPanel>
+                    </Button>
+                    <Button Tag="1" Click="StatFilter_Click" Style="{StaticResource StatButton}" AutomationProperties.Name="筛选待复核">
+                        <StackPanel><TextBlock Text="待复核" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="ReviewText" Text="0" Style="{StaticResource StatValue}" Foreground="#976129"/></StackPanel>
+                    </Button>
+                    <Button Tag="6" Click="StatFilter_Click" Style="{StaticResource StatButton}" AutomationProperties.Name="筛选拍摄失败">
+                        <StackPanel><TextBlock Text="拍摄失败" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="CaptureFailedText" Text="0" Style="{StaticResource StatValue}" Foreground="{StaticResource Failure}"/></StackPanel>
+                    </Button>
+                    <Button Tag="4" Click="StatFilter_Click" Style="{StaticResource StatButton}" Margin="0" AutomationProperties.Name="筛选处理错误">
+                        <StackPanel><TextBlock Text="处理错误" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="ErrorText" Text="0" Style="{StaticResource StatValue}" Foreground="{StaticResource Failure}"/></StackPanel>
+                    </Button>
+                </UniformGrid>
+
+                <Grid x:Name="FilterPanel" Grid.Row="2" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <ComboBox x:Name="FilterBox" Width="124" SelectedIndex="0" SelectionChanged="Filter_Changed"
+                              Margin="0,0,7,0" AutomationProperties.Name="照片状态">
+                        <ComboBoxItem Content="全部照片"/>
+                        <ComboBoxItem Content="待复核"/>
+                        <ComboBoxItem Content="自动通过"/>
+                        <ComboBoxItem Content="人工确认"/>
+                        <ComboBoxItem Content="处理错误"/>
+                        <ComboBoxItem Content="未处理"/>
+                        <ComboBoxItem Content="拍摄失败"/>
+                        <ComboBoxItem Content="裁剪成功"/>
+                    </ComboBox>
+                    <Grid Grid.Column="1" Width="220" HorizontalAlignment="Left" Margin="0,0,10,0">
+                        <TextBox x:Name="SearchBox" TextChanged="Search_Changed" AutomationProperties.Name="按文件名搜索"/>
+                        <TextBlock Text="搜索文件名" Margin="10,0" VerticalAlignment="Center"
+                                   Foreground="{StaticResource Muted}" IsHitTestVisible="False">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                        <Button x:Name="RetryButton" Content="重试处理错误" Click="Retry_Click" Margin="0,0,7,0"/>
+                        <Button x:Name="ResumeReviewButton" Content="继续复核" Click="ResumeReview_Click" Margin="0,0,7,0"
+                                Visibility="Collapsed"/>
+                        <Button x:Name="SelectPageButton" Content="选择本页" Click="SelectPage_Click" Margin="0,0,7,0"/>
+                        <Button x:Name="AcceptSelectedButton" Content="确认所选" Click="AcceptSelected_Click"/>
+                    </StackPanel>
+                </Grid>
+
+                <Grid Grid.Row="3">
+                    <Grid x:Name="OverviewPanel">
+                        <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                        <ScrollViewer x:Name="PhotoListScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl x:Name="PhotoGrid" HorizontalContentAlignment="Stretch" VerticalAlignment="Top">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><UniformGrid Columns="4"/></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <local:RoundedClipBorder Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                                                                 CornerRadius="12" Margin="0,0,8,10" VerticalAlignment="Top">
+                                            <Grid>
+                                                <Grid.RowDefinitions><RowDefinition Height="142"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                                <Button Background="#E8EAE2" BorderThickness="0" Padding="0" Click="Photo_Click"
+                                                        Tag="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
+                                                        ToolTip="打开照片与裁剪预览">
+                                                    <Grid ClipToBounds="True">
+                                                        <Image x:Name="PhotoThumbnail" Source="{Binding BoundaryKey, Converter={StaticResource BoundaryThumb}}" Stretch="Uniform"/>
+                                                        <TextBlock Text="无法显示原图" Foreground="{StaticResource Muted}"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Source, ElementName=PhotoThumbnail}" Value="{x:Null}">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <Border Width="53" Height="53" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                                Margin="7" Background="White" BorderBrush="White" BorderThickness="2" CornerRadius="6">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding HasCropPreview}" Value="False">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <Image Source="{Binding ThumbnailPath, Converter={StaticResource Thumb}}" Stretch="Uniform"/>
+                                                        </Border>
+                                                    </Grid>
+                                                </Button>
+                                                <StackPanel Grid.Row="1" Margin="10,8,10,9">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="22"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                                        <CheckBox IsChecked="{Binding Selected}" IsEnabled="{Binding CanBulkConfirm}"
+                                                                  AutomationProperties.Name="选择照片" VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding Name}" ToolTip="{Binding Record.RelativePath}"
+                                                                   TextTrimming="CharacterEllipsis" FontWeight="Medium" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding StatusText}" Foreground="{Binding State, Converter={StaticResource StateBrush}}"
+                                                               FontSize="12" Margin="22,4,0,0"/>
+                                                    <TextBlock Text="{Binding Reason}" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis"
+                                                               FontSize="12" Margin="22,2,0,0" MinHeight="18" ToolTip="{Binding Reason}"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </local:RoundedClipBorder>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                        <Border x:Name="EmptyPanel" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                                CornerRadius="16" Padding="24" VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <StackPanel MaxWidth="390">
+                                <TextBlock x:Name="EmptyTitle" Text="尚未导入照片" FontSize="21" Style="{StaticResource Heading}"/>
+                                <TextBlock x:Name="EmptyDetail" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Row="1" Margin="0,5,8,0" Padding="13,7"
+                                Background="{StaticResource GlassSurface}" BorderBrush="{StaticResource GlassRim}"
+                                BorderThickness="1" CornerRadius="13">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock x:Name="PageInfo" Text="尚未导入照片" Foreground="{StaticResource Muted}"/>
+                                    <TextBlock x:Name="PageInputError" Foreground="{StaticResource Failure}" FontSize="12"
+                                               TextWrapping="Wrap" Visibility="Collapsed" Margin="0,2,8,0"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock x:Name="PagePosition" Text="第 0 页 / 共 0 页" Foreground="{StaticResource SidebarInk}"
+                                               FontWeight="Medium" Typography.NumeralAlignment="Tabular"
+                                               VerticalAlignment="Center" Margin="0,0,14,0"/>
+                                    <Button x:Name="PrevPageButton" Content="上一页" Click="PrevPage_Click" IsEnabled="False"
+                                            Padding="11,6" Margin="0,0,6,0"/>
+                                    <ComboBox x:Name="PageSelector" Width="82" Margin="0,0,6,0" IsEditable="True"
+                                              Typography.NumeralAlignment="Tabular"
+                                              IsTextSearchEnabled="False" MaxDropDownHeight="232" IsEnabled="False"
+                                              ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True"
+                                              VirtualizingPanel.VirtualizationMode="Recycling"
+                                              SelectionChanged="PageSelector_SelectionChanged" PreviewKeyDown="PageSelector_PreviewKeyDown"
+                                              AutomationProperties.Name="页码" ToolTip="可下拉选页，或输入页码后按 Enter">
+                                        <ComboBox.ItemsPanel>
+                                            <ItemsPanelTemplate><VirtualizingStackPanel/></ItemsPanelTemplate>
+                                        </ComboBox.ItemsPanel>
+                                    </ComboBox>
+                                    <Button x:Name="JumpPageButton" Content="跳转" Click="JumpPage_Click" IsEnabled="False"
+                                            Padding="11,6" Margin="0,0,6,0"/>
+                                    <Button x:Name="NextPageButton" Content="下一页" Click="NextPage_Click" IsEnabled="False"
+                                            Padding="11,6"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <Grid x:Name="EditorPanel" Visibility="Collapsed" SizeChanged="EditorPanel_SizeChanged">
+                        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="284"/></Grid.ColumnDefinitions>
+                        <local:RoundedClipBorder Background="#1E2624" CornerRadius="13" Margin="0,0,13,0">
+                            <Grid>
+                                <local:CornerSurface x:Name="Surface"/>
+                                <Border Background="#DD25312C" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="12"
+                                        CornerRadius="8" Padding="9,6" MaxWidth="420" IsHitTestVisible="False">
+                                    <TextBlock x:Name="EditorName" Foreground="White" TextTrimming="CharacterEllipsis"
+                                               ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+                                </Border>
+                                <TextBlock Text="滚轮缩放 · 中键平移 · 拖动角点" Foreground="#D6DED2"
+                                           VerticalAlignment="Bottom" Margin="12" IsHitTestVisible="False"/>
+                            </Grid>
+                        </local:RoundedClipBorder>
+                        <Border Grid.Column="1" Background="White" CornerRadius="13" BorderBrush="{StaticResource Line}"
+                                BorderThickness="1" Padding="13">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                    <StackPanel>
+                                        <TextBlock Text="裁剪预览" Style="{StaticResource Heading}" FontSize="17"/>
+                                        <local:RoundedClipBorder x:Name="PreviewFrame" Background="#EEF0E8" CornerRadius="9" Margin="0,8,0,6" Height="208">
+                                            <Image x:Name="PreviewImage" Stretch="Uniform"/>
+                                        </local:RoundedClipBorder>
+                                        <TextBlock x:Name="PreviewInfo" Text="选满四角后生成预览" Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+                                        <Border Background="#F7F0E5" CornerRadius="8" Margin="0,7,0,9" Padding="9,5">
+                                            <TextBlock x:Name="ReasonText" TextWrapping="Wrap" Foreground="#79501D" FontSize="12"
+                                                       LineHeight="18" LineStackingStrategy="BlockLineHeight"/>
+                                        </Border>
+                                        <TextBlock x:Name="CandidateInfo" TextWrapping="Wrap" Foreground="{StaticResource Muted}" Visibility="Collapsed"/>
+                                    </StackPanel>
+                                </ScrollViewer>
+
+                                <StackPanel Grid.Row="1" Margin="0,8,0,0">
+                                    <UniformGrid Rows="1" Margin="0,0,0,6">
+                                        <Button Content="重新识别" Click="Detect_Click" Padding="4,5" Margin="0,0,4,0"/>
+                                        <Button x:Name="CandidateButton" Content="换候选框" Click="Candidate_Click" Padding="4,5" Margin="0,0,4,0" IsEnabled="False"/>
+                                        <Button Content="角点工具 ▾" Click="CornerTools_Click" Padding="4,5"/>
+                                    </UniformGrid>
+                                    <Button x:Name="SaveNextButton" Content="确认保存并下一张  ↵" Click="SaveNext_Click"
+                                            Style="{StaticResource Primary}" Margin="0,0,0,6"/>
+                                    <UniformGrid Rows="1">
+                                        <Button x:Name="PreviousReviewButton" Content="上一张" Click="PreviousReview_Click" Padding="4,5" Margin="0,0,4,0"/>
+                                        <Button x:Name="NextReviewButton" Content="下一张" Click="Skip_Click" Padding="4,5"/>
+                                    </UniformGrid>
+                                    <Border Height="1" Background="{StaticResource Line}" Margin="0,10,0,8"/>
+                                    <Label Content="拍摄失败原因" Target="{Binding ElementName=CaptureReasonBox}" Padding="0"
+                                           Foreground="{StaticResource Failure}" FontWeight="Medium" Margin="0,0,0,4"/>
+                                    <ComboBox x:Name="CaptureReasonBox" SelectedIndex="0" SelectionChanged="CaptureReason_Changed" Margin="0,0,0,6">
+                                        <ComboBoxItem Content="请选择原因"/>
+                                        <ComboBoxItem Content="严重模糊"/>
+                                        <ComboBoxItem Content="反光遮挡"/>
+                                        <ComboBoxItem Content="目标缺失"/>
+                                        <ComboBoxItem Content="未拍完整"/>
+                                        <ComboBoxItem Content="其他原因"/>
+                                    </ComboBox>
+                                    <Button x:Name="MarkCaptureFailedButton" Content="标记拍摄失败并下一张" Click="Reject_Click"
+                                            Style="{StaticResource Destructive}" Padding="8,7" IsEnabled="False"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+
+                <StackPanel Grid.Row="4" Margin="0,10,0,0">
+                    <ProgressBar x:Name="Progress" Height="4" Minimum="0" Maximum="100" Foreground="#768964"
+                                 Background="#E1E5D9" BorderThickness="0"/>
+                    <Grid Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <TextBlock x:Name="StatusLine" Text="就绪" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+                        <TextBlock Grid.Column="1" x:Name="ElapsedText" Foreground="{StaticResource Muted}"
+                                   Typography.NumeralAlignment="Tabular" Margin="8,0,0,0"/>
+                    </Grid>
+                </StackPanel>
+            </Grid>
+        </Grid>
     </Grid>
-   </Border>
-   <Grid Grid.Row="2" Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="190"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-    <ComboBox x:Name="FilterBox" Width="130" SelectedIndex="0" SelectionChanged="Filter_Changed" Margin="0,0,10,0"><ComboBoxItem Content="全部照片"/><ComboBoxItem Content="待复核"/><ComboBoxItem Content="自动通过"/><ComboBoxItem Content="人工确认"/><ComboBoxItem Content="处理失败"/><ComboBoxItem Content="未处理"/><ComboBoxItem Content="已排除"/></ComboBox>
-    <Grid Grid.Column="1"><TextBox x:Name="SearchBox" TextChanged="Search_Changed" ToolTip="按文件名搜索"/><TextBlock Text="搜索文件名…" Margin="10,0" VerticalAlignment="Center" FontSize="11" Foreground="#90958B" IsHitTestVisible="False"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value=""><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Grid>
-    <StackPanel Grid.Column="3" Orientation="Horizontal"><Button x:Name="RetryButton" Content="重试失败" Click="Retry_Click" Padding="12,8" Margin="0,0,8,0"/><Button Content="选择本页" Click="SelectPage_Click" Padding="12,8" Margin="0,0,8,0"/><Button x:Name="AcceptSelectedButton" Content="确认所选" Click="AcceptSelected_Click" Padding="12,8"/><Button x:Name="BackButton" Content="返回总览" Click="Back_Click" Padding="12,8" Visibility="Collapsed" Margin="8,0,0,0"/></StackPanel>
-   </Grid>
-   <Grid Grid.Row="3">
-    <Grid x:Name="OverviewPanel"><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-      <ItemsControl x:Name="PhotoGrid" HorizontalContentAlignment="Stretch" VerticalAlignment="Top"><ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="4"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-       <ItemsControl.ItemTemplate><DataTemplate>
-        <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8" Margin="0,0,10,12" ClipToBounds="True" VerticalAlignment="Top">
-         <Grid><Grid.RowDefinitions><RowDefinition Height="145"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-          <Button Background="#E8EAE2" BorderThickness="0" Padding="0" Click="Photo_Click" Tag="{Binding}" ToolTip="原图与四角边界；右下角为裁剪预览。点击调整。"><Grid><Image Source="{Binding BoundaryKey, Converter={StaticResource BoundaryThumb}}" Stretch="Uniform"/><Border Width="58" Height="58" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="6" Background="White" BorderBrush="White" BorderThickness="2" CornerRadius="3"><Image Source="{Binding ThumbnailPath, Converter={StaticResource Thumb}}" Stretch="Uniform"/></Border></Grid></Button>
-          <StackPanel Grid.Row="1" Margin="12,10,12,12"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="22"/><ColumnDefinition/></Grid.ColumnDefinitions><CheckBox IsChecked="{Binding Selected}"/><TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontSize="12"/></Grid>
-           <TextBlock Text="{Binding StatusText}" Foreground="{Binding State, Converter={StaticResource StateBrush}}" FontSize="10" Margin="22,6,0,0"/><TextBlock Text="{Binding Reason}" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" FontSize="10" Margin="22,4,0,0" Height="15" ToolTip="{Binding Reason}"/>
-          </StackPanel>
-         </Grid>
-        </Border>
-       </DataTemplate></ItemsControl.ItemTemplate>
-      </ItemsControl>
-     </ScrollViewer>
-     <Border x:Name="EmptyPanel" Background="#ECEEE5" CornerRadius="9" Padding="40" VerticalAlignment="Center" HorizontalAlignment="Center"><StackPanel MaxWidth="420"><TextBlock x:Name="EmptyTitle" Text="让一整批照片自己跑完" FontSize="22" FontWeight="SemiBold"/><TextBlock x:Name="EmptyDetail" Text="选择左侧原照片和结果目录，点击开始整批处理。可靠结果自动导出，疑难照片集中复核。" Foreground="{StaticResource Muted}" TextWrapping="Wrap" LineHeight="25" Margin="0,14,0,0"/><TextBlock Text="01  选择目录       02  整批运行       03  集中复核" FontSize="11" Foreground="#58654E" Margin="0,24,0,0"/></StackPanel></Border>
-     <Grid Grid.Row="1" Margin="0,8,10,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock x:Name="PageInfo" Text="尚未导入照片" Foreground="{StaticResource Muted}" VerticalAlignment="Center" FontSize="11"/><StackPanel Grid.Column="1" Orientation="Horizontal"><Button Content="上一页" Click="PrevPage_Click" Padding="12,7" Margin="0,0,8,0"/><Button Content="下一页" Click="NextPage_Click" Padding="12,7"/></StackPanel></Grid>
-    </Grid>
-    <Grid x:Name="EditorPanel" Visibility="Collapsed"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="292"/></Grid.ColumnDefinitions>
-     <Border Background="#1E2624" CornerRadius="9" Margin="0,0,16,0" ClipToBounds="True"><Grid><local:CornerSurface x:Name="Surface"/><Border Background="#DD25312C" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="14" CornerRadius="5" Padding="10,7"><TextBlock x:Name="EditorName" Foreground="#E4E9DE" FontSize="11"/></Border><TextBlock Text="滚轮缩放 · 中键平移 · 拖动角点 · 点击重选四角" Foreground="#CBD4C5" FontSize="10" VerticalAlignment="Bottom" Margin="16"/></Grid></Border>
-     <Border Grid.Column="1" Background="White" CornerRadius="9" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="18">
-      <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-       <StackPanel><TextBlock Text="裁剪预览" FontWeight="SemiBold" FontSize="16"/><Border Background="#EEF0E8" CornerRadius="6" Margin="0,14,0,10" Height="210"><Image x:Name="PreviewImage" Stretch="Uniform"/></Border><TextBlock x:Name="PreviewInfo" Text="选满四角后生成预览" FontSize="10" Foreground="{StaticResource Muted}"/>
-        <Border Background="#F7F0E5" CornerRadius="6" Margin="0,18,0,14" Padding="12"><TextBlock x:Name="ReasonText" TextWrapping="Wrap" Foreground="#8E632F" FontSize="11" LineHeight="19"/></Border>
-        <TextBlock Text="仅修改目标图片的四角。&#10;保留照片中的真实拖影和暗色内容。" Foreground="{StaticResource Muted}" FontSize="10" LineHeight="19"/>
-       </StackPanel>
-       <StackPanel Grid.Row="2"><Grid Margin="0,0,0,9"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><Button Content="重新识别" Click="Detect_Click" Padding="8,9" Margin="0,0,4,0"/><Button Grid.Column="1" Content="适应窗口" Click="Fit_Click" Padding="8,9" Margin="4,0,0,0"/></Grid><Button x:Name="SaveNextButton" Content="确认保存并下一张  ↵" Click="SaveNext_Click" Style="{StaticResource Primary}" Margin="0,0,0,9"/><Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><Button Content="暂时跳过" Click="Skip_Click" Padding="8,9" Margin="0,0,4,0"/><Button Grid.Column="1" Content="标记拍摄失败" Click="Reject_Click" Padding="8,9" Margin="4,0,0,0"/></Grid></StackPanel>
-      </Grid>
-     </Border>
-    </Grid>
-   </Grid>
-   <StackPanel Grid.Row="4" Margin="0,18,0,0"><ProgressBar x:Name="Progress" Height="3" Minimum="0" Maximum="100" Foreground="#768964" Background="#E1E5D9" BorderThickness="0"/><Grid Margin="0,9,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock x:Name="StatusLine" Text="就绪 · 原照片保留" Foreground="{StaticResource Muted}" FontSize="11" TextTrimming="CharacterEllipsis"/><TextBlock Grid.Column="1" x:Name="ElapsedText" Foreground="{StaticResource Muted}" FontSize="10"/></Grid></StackPanel>
-  </Grid>
- </Grid>
 </Window>
