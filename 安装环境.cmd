@@ -1,7 +1,13 @@
 @echo off
 chcp 65001 >nul
-call "%~dp0启动裁剪.cmd" --setup-only
-if errorlevel 1 exit /b %errorlevel%
-echo 环境安装完成，可以双击“启动裁剪.cmd”使用。
-echo Setup complete. Double-click the crop launcher to begin.
+setlocal
+cd /d "%~dp0"
+echo 构建 C# / WPF 原生桌面应用，需要 .NET 10 SDK。
+dotnet publish "%~dp0desktop\Crop.Desktop\Crop.Desktop.csproj" -c Release -r win-x64 --self-contained true -o "%~dp0desktop\artifacts\win-x64" --nologo
+if errorlevel 1 (
+  echo 构建失败。请安装 .NET 10 SDK 后重试。
+  pause
+  exit /b 1
+)
+echo 已完成。双击“启动裁剪.cmd”即可使用。
 pause

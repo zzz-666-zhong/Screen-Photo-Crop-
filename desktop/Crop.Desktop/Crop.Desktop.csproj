@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net10.0-windows</TargetFramework><UseWPF>true</UseWPF><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><PlatformTarget>x64</PlatformTarget><AssemblyName>ScreenCrop</AssemblyName><Version>1.0.0</Version><Description>Native batch screen-photo cropper</Description></PropertyGroup>
+  <ItemGroup><ProjectReference Include="..\Crop.Core\Crop.Core.csproj"/></ItemGroup>
+  <ItemGroup><Content Include="..\licenses\*" Link="licenses\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always"/></ItemGroup>
+</Project>
