@@ -10,7 +10,11 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        DispatcherUnhandledException += (_,args) => { MessageBox.Show(args.Exception.Message,"操作未完成",MessageBoxButton.OK,MessageBoxImage.Error);args.Handled=true; };
+        DispatcherUnhandledException += (_, args) =>
+        {
+            AppDialog.Error(MainWindow, args.Exception.Message);
+            args.Handled = true;
+        };
         int capture=Array.IndexOf(e.Args,"--screenshot");
         string? testPreferences = capture >= 0 && capture + 1 < e.Args.Length
             ? Path.Combine(Path.GetDirectoryName(Path.GetFullPath(e.Args[capture + 1]))!, ".test-preferences.json")

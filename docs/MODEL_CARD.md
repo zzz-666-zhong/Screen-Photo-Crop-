@@ -1,10 +1,10 @@
 # ScreenCrop 检测、模型与评估 / Detection, models and evaluation
 
-**ScreenCrop 1.2.4 可以针对手持抖动拍摄的屏幕照片进行裁切。** 只要目标外边界保留了足够线索，程序就能尝试定位四角。有重影或弱边的照片可在复核中比较候选，或手动校正后保存。透视校正从原照片采样，结果保留拍摄时的运动模糊。
+**ScreenCrop 1.2.5 可以针对手持抖动拍摄的屏幕照片进行裁切。** 只要目标外边界保留了足够线索，程序就能尝试定位四角。有重影或弱边的照片可在复核中比较候选，或手动校正后保存。透视校正从原照片采样，结果保留拍摄时的运动模糊。
 
-ScreenCrop 1.2.4 localizes visible outer borders in motion-blurred screen photos. Inspect uncertain proposals or adjust the corners manually. Crops retain captured motion blur.
+ScreenCrop 1.2.5 localizes visible outer borders in motion-blurred screen photos. Inspect uncertain proposals or adjust the corners manually. Crops retain captured motion blur.
 
-## 原生桌面版 1.2.4
+## 原生桌面版 1.2.5 / Native desktop 1.2.5
 
 Windows 默认入口使用 OpenCV 几何检测与规则分流。旧 Python 随机森林的权重、训练与评估见下方历史记录。
 
@@ -15,23 +15,36 @@ Windows 默认入口使用 OpenCV 几何检测与规则分流。旧 Python 随�
 3. 扩展路径补充彩色边缘和局部对比度证据，为浅色边、近拍贴边和斜拍提供候选。没有合格常规框时可走补充路径；使用「扩展搜索」也可以在已有常规结果时查找其他候选。扩展候选进入人工复核。
 4. 将有效四角映射到原图，使用透视变换和双线性采样。复核页可显示弱边或不同尺度的分歧，并允许切换候选与调整角点。评分表示边界证据，自动通过的结果也需要抽查。
 
-### 抖动回归与证据范围
+### 抖动回归与证据范围 / Motion-blur regression
 
-以下为 1.2.4 [Crop.Verify](../desktop/Crop.Verify/Program.cs) 用同一张合成图测试的结果。IoU 是候选与参考四边形的交并比，本项检查要求 IoU 大于 0.85。
+以下为 1.2.5 [Crop.Verify](../desktop/Crop.Verify/Program.cs) 用同一张合成图测试的结果。IoU 是候选与参考四边形的交并比，本项检查要求 IoU 大于 0.85。
 
-| 合成输入 | 边界 IoU | 分流 |
+| 合成输入 / Synthetic input | 边界 IoU / Polygon IoU | 分流 / Review outcome |
 | --- | ---: | --- |
-| 清晰图 | 0.9339 | 自动通过 |
-| 9 × 9 对角运动核 | 0.9236 | 自动通过 |
-| 19 × 19 对角运动核 | 0.9147 | 待复核，保留候选四角 |
+| 清晰图 / Sharp | 0.9339 | 自动通过 / Auto accepted |
+| 9 × 9 对角运动核 / Diagonal motion kernel | 0.9236 | 自动通过 / Auto accepted |
+| 19 × 19 对角运动核 / Diagonal motion kernel | 0.9147 | 待复核，保留候选四角 / Proposal kept for review |
 
 彩色等亮边、浅色边、贴边近拍和大角度的合成用例均得到 IoU ≥ 0.99 的候选，并进入复核。合成运动核与其他场景描述测试输入，真实结果仍会受快门、目标大小、运动方向、背景与反光影响。
 
-[原生版验证记录](../desktop/VALIDATION.md) 另载 **1.0.0** 的 44 张开发诊断和 500 张拍摄会话对照。该会话与开发图共享装置和相近环境，参考框多为历史自动裁切及复核记录。这些数据说明与历史参考框的重叠程度。1.2.4 的跨设备和真实场景表现仍需单独测试。
+[原生版验证记录](../desktop/VALIDATION.md) 另载 **1.0.0** 的 44 张开发诊断和 500 张拍摄会话对照。该会话与开发图共享装置和相近环境，参考框多为历史自动裁切及复核记录。这些数据说明与历史参考框的重叠程度。1.2.5 的跨设备和真实场景表现仍需单独测试。
 
 ```powershell
 dotnet run --project desktop/Crop.Verify/Crop.Verify.csproj -c Release
 ```
+
+### English detector notes
+
+The default Windows app uses OpenCV geometry and rules to decide when to defer to manual review. Training and weights for the historical Python forests are documented below.
+
+1. Contours at several thresholds and grouped fragments of line segments provide four-sided proposals. The detector ranks the conventional proposals first. When the best proposal has weak support, or when there is no proposal, it can search a sharpened copy and score those extra conventional candidates on the unenhanced detection image.
+2. Border support, contrast, exterior texture, evidence of a thin frame, and competing proposals inform the review decision. On larger photos, the detector can run at two scales. A disagreement between valid results goes to review.
+3. Extended detection adds color-edge and local-contrast evidence for pale edges, close or edge-touching targets, and steep viewing angles. It supplies fallback candidates when conventional detection finds none. Selecting **Extended search** also looks for alternatives alongside a conventional result. Extended candidates go to manual review.
+4. The selected corners map back to the original photo. The app applies a perspective transform and bilinear sampling. The review pane shows weak borders or scale disagreement and lets the user compare proposals and adjust corners. Spot-check automatic results.
+
+The table above shows three inputs derived from a single synthetic scene in `Crop.Verify`. IoU measures the overlap of the proposed and reference quadrilaterals relative to their union. This regression requires IoU greater than 0.85. The synthetic equal-luminance color edge, pale edge, edge-touching close-up, and steep-angle fixtures each found a proposal with IoU at least 0.99 and deferred it to review. Real results depend on shutter speed, motion direction, target size, background, and glare.
+
+The [validation record](../desktop/VALIDATION.md) also preserves a **1.0.0** diagnostic of 44 photos and a 500-photo capture-session comparison. The latter shares equipment and a similar environment with the development data, and most reference frames came from previous automated crops and review. These results measure agreement with those references. Cross-device and real-scene performance for 1.2.5 requires separate testing.
 
 ## 旧版 Python 模型与历史评估
 

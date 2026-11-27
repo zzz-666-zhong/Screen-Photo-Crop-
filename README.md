@@ -1,6 +1,8 @@
-# ScreenCrop · 抖动拍屏照片批量裁剪
+# ScreenCrop · 抖动拍屏照片批量裁剪 / Batch screen-photo cropping
 
-**Windows 原生桌面版 1.2.4**。手持拍屏出现拖影时，只要目标外边界仍能辨认，ScreenCrop 就可以尝试逐张定位四角，裁出完整画面并校正透视。边界证据充分的结果可自动保存，证据较弱的照片进入复核。输出从原照片采样，保留拍摄时的拖影和暗色内容。
+[简体中文](#快速开始) · [English](#english)
+
+**Windows 原生桌面版 1.2.5**。手持拍屏出现拖影时，只要目标外边界仍能辨认，ScreenCrop 就可以尝试逐张定位四角，裁出完整画面并校正透视。边界证据充分的结果可自动保存，证据较弱的照片进入复核。输出从原照片采样，保留拍摄时的拖影和暗色内容。
 
 [使用指南](docs/USAGE.md) · [检测与模型说明](docs/MODEL_CARD.md) · [验证记录](desktop/VALIDATION.md) · [更新记录](CHANGELOG.md)
 
@@ -12,6 +14,8 @@
 4. 点击缩略图放大检查原照片，可调整四角、换候选框并预览。四角不可辨、目标出框或被大片反光遮挡时，可标记为拍摄失败，并导出重拍清单。
 
 Windows x64 自包含构建可以整体复制到另一台电脑。请保留同目录的 DLL、资源和许可证。
+
+在主窗口顶部选择「简体中文」或「English」。工作台、设置、菜单、提示和帮助会同步切换，软件会记住选择。点击「使用说明」或按 **F1** 可打开内置指南。
 
 ## 抖动画面如何裁切
 
@@ -46,6 +50,34 @@ dotnet publish desktop/Crop.Desktop/Crop.Desktop.csproj -c Release -r win-x64 --
 
 使用 `启动旧版.cmd` 或 `安装旧版环境.cmd`。实验复现和命令行参数见 [使用指南中的旧版部分](docs/USAGE.md#旧版-python)，训练流程见 [训练说明](docs/TRAINING.md)。
 
-## English summary
+## English
 
-ScreenCrop 1.2.4 batch-crops images from photographed screens, including handheld captures with visible motion blur. The Windows x64 app estimates each photo’s corners independently, rectifies perspective, and sends uncertain boundaries to manual review. Crops retain blur from the original. The app also supports direct page navigation, capture-failure ledgers, and batch backup. See the [model card](docs/MODEL_CARD.md) for evidence and limitations.
+**ScreenCrop 1.2.5** is a native Windows x64 app for batch cropping photos of screens. When the complete target boundary remains visible despite camera shake, it can estimate four corners per photo and correct perspective. Clear proposals can be saved automatically. Uncertain captures go to review. The crop comes from the original photo and retains captured motion blur and dark detail.
+
+### Quick start
+
+1. Extract or clone the full repository, then double-click `启动裁剪.cmd` on Windows x64. The first build uses the .NET 10 SDK and NuGet. Run `安装环境.cmd` once after updating an existing checkout to rebuild it. To run an existing build, open `desktop/artifacts/win-x64/ScreenCrop.exe`.
+2. Choose a source folder or select or drop photo files, then set a result folder. Enable **Square target** for a square target. Start with **Native crop size** and an inset of 0.
+3. Click **Start batch**. Review **Needs review** and spot-check **Auto accepted**. Choose a page in the footer or enter a page number and press Enter.
+4. Open a thumbnail to examine or adjust the four corners. If severe blur, glare, or missing content hides essential corners, mark the capture as failed and export the retake list.
+
+Choose **简体中文** or **English** at the top of the app to switch the interface. ScreenCrop remembers the choice. Open **User guide** or press **F1** for in-app help. Copy the whole self-contained build, including its DLLs and licenses, to run it on another Windows x64 computer.
+
+### How it handles motion blur
+
+ScreenCrop proposes a separate frame for each photo using contours and line segments. It can search a sharpened copy for additional proposals, then checks border support and contrast on the detection image. Extended search offers proposals for light borders, close-ups, edge-touching targets, and tilted views. Review can refine frames whose outer boundaries remain visible. [Detector and evaluation notes](docs/MODEL_CARD.md) · [Validation record](desktop/VALIDATION.md)
+
+### Results and batch tools
+
+| File or folder | Purpose |
+| --- | --- |
+| `裁剪成功/` | Saved auto-accepted or manually confirmed crops, in PNG or JPEG. |
+| `待复核/` | Provisional crops for candidates that need review. |
+| `拍摄失败/` | Copies of originals flagged for a retake. |
+| `拍摄失败记录.csv`, `拍摄失败历史.csv` | The Excel-readable retake list and history, including re-cropped entries. |
+| `batch_session.json`, `.screen-crop-journal/` | Batch settings, relative paths, hashes, states, and corner coordinates for resume and recovery. |
+| `crop_report.csv`, `crop_labels.json` | Full batch status and compatible labels. The `confirmed` field identifies manual confirmation. |
+
+**Batch tools** can refresh or relocate a batch, update reports, show statistics, and export a backup ZIP. When reporting batch outcomes, use all input photos as the denominator and report each outcome count.
+
+The native app uses C#, .NET 10, WPF, and OpenCvSharp. See [desktop build instructions](desktop/README.md) and the [publishing guide](docs/PUBLISHING.md). The [usage guide](docs/USAGE.md#english) covers the full workflow and the historical [Python tools](docs/USAGE.md#旧版-python). [Changelog](CHANGELOG.md) · [License](LICENSE)

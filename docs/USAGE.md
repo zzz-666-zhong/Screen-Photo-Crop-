@@ -1,6 +1,10 @@
-# ScreenCrop 1.2.4 使用指南 / Usage guide
+# ScreenCrop 1.2.5 使用指南 / Usage guide
 
 本页说明 Windows 原生版。用于复现实验的命令行、固定坐标裁切和旧模型参数见 [旧版 Python](#旧版-python)。
+
+[简体中文](#1-启动和新建批次) · [English](#english)
+
+在窗口顶部选择「简体中文」或「English」，工作台、复核、设置、菜单和帮助会一起切换。软件会记住语言。点击「使用说明」或按 **F1** 打开内置指南。Windows 文件选择器的系统按钮遵循系统显示语言。
 
 ## 1. 启动和新建批次
 
@@ -40,9 +44,49 @@
 - 一个批次可以在不同窗口查看，写入时有排他锁和版本校验。若另一个窗口已更新批次，先「刷新批次」再操作。若已保存结果在程序外被修改，请对照提示检查文件，再决定是否覆盖。
 - 「导出批次备份 ZIP」打包批次记录、原照片和结果。`crop_report.csv` 查看全批状态，`crop_labels.json` 的 `confirmed` 表示人工确认。备份和报表含照片信息，分享前请检查内容。
 
-### English quick start
+## English
 
-Launch `启动裁剪.cmd` or open the complete Windows x64 build. Import a photo folder or selected files, choose a result folder, and run the batch. Review weak or motion-blurred borders with the corner magnifier and alternate proposals. Use the page picker to navigate, and export a capture-failure CSV for retakes. The **Batch tools** menu can refresh a changed batch, relocate files, update reports, and export a backup. Perspective correction preserves blur in the source.
+These steps describe the Windows-native ScreenCrop 1.2.5. See [Legacy Python](#旧版-python) for the historical command-line and fixed-coordinate workflows.
+
+Choose **简体中文** or **English** at the top of the window to switch the workspace, review tools, settings, menus, and guide together. ScreenCrop remembers your choice. Open **User guide** or press **F1** for the six built-in topics. Standard buttons in Windows file pickers follow the Windows display language.
+
+### 1. Start and set up a batch
+
+1. On Windows x64, double-click `启动裁剪.cmd` or open `ScreenCrop.exe` from a complete self-contained build. The first source build uses the .NET 10 SDK and NuGet. Run `安装环境.cmd` to rebuild a previously compiled checkout after updating it.
+2. Click **New batch**, then **Folder** or **Photos**. You can also drop a folder or one or more photo files into the workspace. Files selected together must be on the same drive.
+3. Choose a result folder. Select **Square target** when the content on screen is square. Use **Include subfolders** for nested folders. The default keeps the native rectified crop size with an edge inset of zero.
+4. **Advanced settings** lets you choose PNG compression, JPEG quality, 16-bit PNG, a naming template, the output long edge, or a detection mode. The long-edge resize preserves the crop’s aspect ratio. You can preserve the relative folder structure. Batch settings lock when the batch is created.
+5. Click **Start batch**. Use the summary cards, filter, or filename search to find photos. The footer shows the current page and total. Select a page or type its number and press **Enter** or click **Jump**.
+
+### 2. Review shaky photos and correct corners
+
+| Capture | What to do |
+| --- | --- |
+| Mild motion blur with visible edges | Run the batch and spot-check **Auto accepted**, especially the corners along the direction of motion. |
+| A faint, interrupted, or doubled edge with a recognizable full frame | Open **Needs review** and check the full outer border. For close-ups, edge-touching targets, or steep angles, you can try **Extended search** when setting up a new batch. |
+| Four visible corners and no usable proposal | Pick four corners on the source photo and inspect the preview. |
+| Critical borders hidden by strong blur or glare, or clipped out of the photo | Select a capture-failure reason and export the retake list. |
+
+The app samples the original photo when cropping and correcting perspective. Inspect the retained motion blur separately from the geometry.
+
+- Scroll to zoom, middle-drag to pan, and drag a corner to adjust it. With the canvas focused, arrow keys move the selected corner by 1 source pixel, **Shift** plus an arrow moves it by 10, and **Ctrl+Tab** selects the next corner.
+- **Next frame** cycles through proposals. The **Corners** menu offers the magnifier, reselecting one or all corners, rotation, and editing history. **F** fits the view, **Ctrl+Z** undoes, and **Ctrl+Y** redoes.
+- After checking the preview, click **Save and next** or press **Enter** on the canvas. Use **Previous** or **Next** to navigate, and **Resume review** to return to the saved review position.
+- Inspect each selected proposal before choosing **Confirm selected**. The dialog gives the selection count. The app reports what was saved, skipped, or failed.
+
+### 3. Mark failed captures and export a CSV
+
+1. In the review pane, choose a reason and click **Mark failed and next**. The app saves a copy of the source photo in the `拍摄失败/` result subfolder.
+2. In the overview, click **Export failure CSV**. Excel can open `拍摄失败记录.csv`. An empty retake list still exports with headers. When the file is stale, click **Update failure CSV**.
+3. Reopen a failed capture to crop it again. The history records it as re-cropped and retains the archive. Choose **Batch tools → Export capture failure history** for a CSV that includes those entries.
+4. **Errors** refers to issues such as opening or writing a file or running out of storage. Fix the cause and click **Retry errors**. If Excel is using a report, close the report and choose **Batch tools → Update batch reports**.
+
+### 4. Pause, resume, and back up
+
+- Pausing or closing during processing lets the current photo finish and records progress. Use **Open batch** on the result folder with `batch_session.json`, then click **Continue batch**.
+- Keep the batch files together, including `.screen-crop-journal/` and, when present, `.screen-crop-pending/`. Use **Batch tools → Relocate batch** after moving source or result folders.
+- The app checks batch revisions and locks writes. Choose **Refresh batch** if another window updated the batch. Inspect externally changed outputs before deciding whether to replace them.
+- **Export batch backup ZIP** archives the batch records, source photos, and outputs. `crop_report.csv` lists all statuses. In `crop_labels.json`, `confirmed` identifies manual confirmation. Inspect backups and reports before sharing them because they contain photo information.
 
 ## 旧版 Python
 

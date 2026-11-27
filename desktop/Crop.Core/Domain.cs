@@ -58,7 +58,7 @@ public sealed class PhotoRecord
 public sealed class BatchSnapshot
 {
     public int Schema { get; set; } = 1;
-    public const string CurrentVersion = "1.2.4";
+    public const string CurrentVersion = "1.2.5";
     public string Version { get; set; } = CurrentVersion;
     public string Detector { get; set; } = "frame-multiscale-v2";
     public long Revision { get; set; }

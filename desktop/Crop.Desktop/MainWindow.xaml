@@ -4,7 +4,7 @@
         xmlns:local="clr-namespace:Crop.Desktop"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:media="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options"
-        Title="ScreenCrop · 批量裁剪工作台" Icon="ScreenCrop.ico"
+        Title="{DynamicResource 'ScreenCrop · 批量裁剪工作台'}" Icon="ScreenCrop.ico"
         Width="1380" Height="860" MinWidth="1050" MinHeight="650"
         Style="{StaticResource WindowTypography}" Background="Transparent" UseLayoutRounding="True"
         WindowStartupLocation="CenterScreen" Closing="Window_Closing" AllowDrop="True" Drop="Path_Drop">
@@ -128,10 +128,18 @@
                                TextOptions.TextFormattingMode="Ideal"
                                FontFamily="{StaticResource NumberFont}" FontWeight="SemiBold" Foreground="{StaticResource SidebarInk}"/>
                     <Border Width="1" Height="15" Background="#CBD6C8" Margin="13,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="批量裁剪工作台" Foreground="{StaticResource SidebarMuted}"
+                    <TextBlock Text="{DynamicResource '批量裁剪工作台'}" Foreground="{StaticResource SidebarMuted}"
                                VerticalAlignment="Center" FontSize="12" FontWeight="Medium"/>
                 </StackPanel>
             </Border>
+            <ComboBox x:Name="AppLanguageSelector" Grid.ColumnSpan="2" Width="116"
+                      HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,164,0"
+                      shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                      AutomationProperties.Name="{DynamicResource '语言 / Language'}"
+                      SelectionChanged="AppLanguage_Changed">
+                <ComboBoxItem Content="简体中文"/>
+                <ComboBoxItem Content="English"/>
+            </ComboBox>
             <Border Grid.ColumnSpan="2" Background="{StaticResource CaptionGlint}" Height="1"
                     VerticalAlignment="Bottom" Margin="12,0,12,1" IsHitTestVisible="False"/>
 
@@ -140,34 +148,41 @@
                     CornerRadius="16" Margin="12,5,0,12">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="2,4,2,4">
                     <StackPanel Margin="15,13,15,14">
-                        <Button Content="新建批次" Click="New_Click" Style="{StaticResource SidebarButton}"
+                        <Button Content="{DynamicResource '新建批次'}" Click="New_Click" Style="{StaticResource SidebarButton}"
                                 Background="{StaticResource SidebarPrimarySurface}" BorderBrush="#C0D1BD" FontWeight="Medium" Margin="0,0,0,7"/>
-                        <Button Content="打开已有批次" Click="Open_Click" Style="{StaticResource SidebarButton}"/>
-                        <Button Content="批次工具 ▾" Click="BatchTools_Click" Style="{StaticResource SidebarButton}" Margin="0,7,0,0"/>
+                        <Button Content="{DynamicResource '打开已有批次'}" Click="Open_Click" Style="{StaticResource SidebarButton}"/>
+                        <Grid Margin="0,7,0,0">
+                            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <Button Content="{DynamicResource '批次工具 ▾'}" Click="BatchTools_Click" Style="{StaticResource SidebarButton}"
+                                    Padding="7,9" Margin="0,0,6,0"/>
+                            <Button Grid.Column="1" x:Name="HelpButton" Content="{DynamicResource '使用说明'}" Click="Help_Click"
+                                    Style="{StaticResource SidebarButton}" Padding="8,9"
+                                    ToolTip="{DynamicResource '使用说明 / User guide (F1)'}" AutomationProperties.Name="{DynamicResource '使用说明 / User guide'}"/>
+                        </Grid>
                         <Border Height="1" Background="#CED9CC" Margin="0,15,0,12"/>
-                        <TextBlock Text="批次设置" Foreground="{StaticResource SidebarInk}" Style="{StaticResource Heading}"
+                        <TextBlock Text="{DynamicResource '批次设置'}" Foreground="{StaticResource SidebarInk}" Style="{StaticResource Heading}"
                                    FontSize="16" Margin="0,0,0,11"/>
 
                         <StackPanel x:Name="SetupPanel">
-                            <Label Content="原照片目录" Target="{Binding ElementName=SourceBox}" Padding="0"
+                            <Label Content="{DynamicResource '原照片目录'}" Target="{Binding ElementName=SourceBox}" Padding="0"
                                    Foreground="{StaticResource SidebarMuted}" Margin="0,0,0,5"/>
-                            <TextBox x:Name="SourceBox" AllowDrop="True" Drop="Path_Drop" ToolTip="可拖入照片文件夹"/>
+                            <TextBox x:Name="SourceBox" AllowDrop="True" Drop="Path_Drop" ToolTip="{DynamicResource '可拖入照片文件夹'}"/>
                             <UniformGrid Rows="1" Margin="0,6,0,10">
-                                <Button Content="选文件夹" Click="Source_Click" Style="{StaticResource SidebarButton}" Padding="9,6" Margin="0,0,4,0"/>
-                                <Button Content="选照片" Click="Files_Click" Style="{StaticResource SidebarButton}" Padding="9,6" Margin="4,0,0,0"/>
+                                <Button Content="{DynamicResource '选文件夹'}" Click="Source_Click" Style="{StaticResource SidebarButton}" Padding="9,6" Margin="0,0,4,0"/>
+                                <Button Content="{DynamicResource '选照片'}" Click="Files_Click" Style="{StaticResource SidebarButton}" Padding="9,6" Margin="4,0,0,0"/>
                             </UniformGrid>
-                            <Label Content="结果目录" Target="{Binding ElementName=OutputBox}" Padding="0"
+                            <Label Content="{DynamicResource '结果目录'}" Target="{Binding ElementName=OutputBox}" Padding="0"
                                    Foreground="{StaticResource SidebarMuted}" Margin="0,0,0,5"/>
                             <TextBox x:Name="OutputBox"/>
-                            <Button Content="浏览结果位置" Click="Output_Click" Style="{StaticResource SidebarButton}"
+                            <Button Content="{DynamicResource '浏览结果位置'}" Click="Output_Click" Style="{StaticResource SidebarButton}"
                                     Padding="9,6" Margin="0,6,0,11"/>
-                            <CheckBox x:Name="SquareBox" Content="目标图片为正方形" IsChecked="True"
+                            <CheckBox x:Name="SquareBox" Content="{DynamicResource '目标图片为正方形'}" IsChecked="True"
                                       Foreground="{StaticResource SidebarInk}" Margin="0,0,0,7"/>
-                            <CheckBox x:Name="RecursiveBox" Content="包含子文件夹" Foreground="{StaticResource SidebarInk}" Margin="0,0,0,11"/>
-                            <Label Content="导出尺寸" Target="{Binding ElementName=SizeBox}" Padding="0"
+                            <CheckBox x:Name="RecursiveBox" Content="{DynamicResource '包含子文件夹'}" Foreground="{StaticResource SidebarInk}" Margin="0,0,0,11"/>
+                            <Label Content="{DynamicResource '导出尺寸'}" Target="{Binding ElementName=SizeBox}" Padding="0"
                                    Foreground="{StaticResource SidebarMuted}" Margin="0,0,0,5"/>
                             <ComboBox x:Name="SizeBox" SelectedIndex="0" Margin="0,0,0,10">
-                                <ComboBoxItem Content="保留原生裁剪分辨率" Tag="0"/>
+                                <ComboBoxItem Content="{DynamicResource '保留原生裁剪分辨率'}" Tag="0"/>
                                 <ComboBoxItem Content="128 × 128" Tag="128"/>
                                 <ComboBoxItem Content="256 × 256" Tag="256"/>
                                 <ComboBoxItem Content="400 × 400" Tag="400"/>
@@ -175,13 +190,13 @@
                             </ComboBox>
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="60"/></Grid.ColumnDefinitions>
-                                <Label Content="四边内切（像素）" Target="{Binding ElementName=InsetBox}" Padding="0"
+                                <Label Content="{DynamicResource '四边内切（像素）'}" Target="{Binding ElementName=InsetBox}" Padding="0"
                                        Foreground="{StaticResource SidebarMuted}" VerticalAlignment="Center"/>
                                 <TextBox x:Name="InsetBox" Grid.Column="1" Text="0"/>
                             </Grid>
-                            <Button Content="高级输出与检测设置" Click="Advanced_Click" Style="{StaticResource SidebarButton}" Margin="0,10,0,0"/>
+                            <Button Content="{DynamicResource '高级输出与检测设置'}" Click="Advanced_Click" Style="{StaticResource SidebarButton}" Margin="0,10,0,0"/>
                         </StackPanel>
-                        <TextBlock x:Name="LockedHint" Text="批次参数已锁定。要调整参数，请新建批次。"
+                        <TextBlock x:Name="LockedHint" Text="{DynamicResource '批次参数已锁定。要调整参数，请新建批次。'}"
                                    Foreground="{StaticResource SidebarMuted}" TextWrapping="Wrap" Margin="0,14,0,0" Visibility="Collapsed"/>
                     </StackPanel>
                 </ScrollViewer>
@@ -202,46 +217,46 @@
                     <Grid>
                         <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                         <StackPanel Margin="0,0,12,0" VerticalAlignment="Center">
-                            <TextBlock x:Name="WorkspaceTitle" Text="批量裁剪" FontSize="26"
+                            <TextBlock x:Name="WorkspaceTitle" Text="{DynamicResource '批量裁剪'}" FontSize="26"
                                        Style="{StaticResource Heading}" TextTrimming="CharacterEllipsis"
                                        ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
-                            <TextBlock x:Name="Subtitle" Text="选择照片目录，或打开已有批次"
+                            <TextBlock x:Name="Subtitle" Text="{DynamicResource '选择照片目录，或打开已有批次'}"
                                        Foreground="{StaticResource Muted}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button x:Name="BackButton" Content="返回总览" Click="Back_Click" Visibility="Collapsed" Margin="0,0,7,0"/>
-                            <Button x:Name="ResultsButton" Content="打开结果" Click="Results_Click" Margin="0,0,7,0" IsEnabled="False"/>
-                            <Button x:Name="ExportFailuresButton" Content="导出拍摄失败表" Click="ExportFailures_Click"
-                                    IsEnabled="False" Margin="0,0,7,0" ToolTip="导出为 Excel 可打开的 CSV"/>
-                            <Button x:Name="RunButton" Content="开始整批处理" Click="Run_Click" Style="{StaticResource Primary}"/>
-                            <Button x:Name="PauseButton" Content="暂停" Click="Pause_Click" Visibility="Collapsed"/>
+                            <Button x:Name="BackButton" Content="{DynamicResource '返回总览'}" Click="Back_Click" Visibility="Collapsed" Margin="0,0,7,0"/>
+                            <Button x:Name="ResultsButton" Content="{DynamicResource '打开结果'}" Click="Results_Click" Margin="0,0,7,0" IsEnabled="False"/>
+                            <Button x:Name="ExportFailuresButton" Content="{DynamicResource '导出拍摄失败表'}" Click="ExportFailures_Click"
+                                    IsEnabled="False" Margin="0,0,7,0" ToolTip="{DynamicResource '导出为 Excel 可打开的 CSV'}"/>
+                            <Button x:Name="RunButton" Content="{DynamicResource '开始整批处理'}" Click="Run_Click" Style="{StaticResource Primary}"/>
+                            <Button x:Name="PauseButton" Content="{DynamicResource '暂停'}" Click="Pause_Click" Visibility="Collapsed"/>
                         </StackPanel>
                     </Grid>
                 </Border>
 
                 <UniformGrid x:Name="StatsPanel" Grid.Row="1" Rows="1" Columns="6" Margin="0,0,0,12">
-                    <Button Tag="0" Click="StatFilter_Click" Style="{StaticResource StatButton}" AutomationProperties.Name="筛选全部照片">
-                        <StackPanel><TextBlock Text="批次照片" Style="{StaticResource StatLabel}"/>
+                    <Button Tag="0" Click="StatFilter_Click" Style="{StaticResource StatButton}" AutomationProperties.Name="{DynamicResource '筛选全部照片'}">
+                        <StackPanel><TextBlock Text="{DynamicResource '批次照片'}" Style="{StaticResource StatLabel}"/>
                             <TextBlock x:Name="TotalText" Text="—" Style="{StaticResource StatValue}"/></StackPanel>
                     </Button>
-                    <Button Tag="2" Click="StatFilter_Click" Style="{StaticResource StatButton}" AutomationProperties.Name="筛选自动通过">
-                        <StackPanel><TextBlock Text="自动通过" Style="{StaticResource StatLabel}"/>
+                    <Button Tag="2" Click="StatFilter_Click" Style="{StaticResource StatButton}" AutomationProperties.Name="{DynamicResource '筛选自动通过'}">
+                        <StackPanel><TextBlock Text="{DynamicResource '自动通过'}" Style="{StaticResource StatLabel}"/>
                             <TextBlock x:Name="AutoText" Text="0" Style="{StaticResource StatValue}" Foreground="#52694A"/></StackPanel>
                     </Button>
-                    <Button Tag="3" Click="StatFilter_Click" Style="{StaticResource StatButton}" AutomationProperties.Name="筛选人工确认">
-                        <StackPanel><TextBlock Text="人工确认" Style="{StaticResource StatLabel}"/>
+                    <Button Tag="3" Click="StatFilter_Click" Style="{StaticResource StatButton}" AutomationProperties.Name="{DynamicResource '筛选人工确认'}">
+                        <StackPanel><TextBlock Text="{DynamicResource '人工确认'}" Style="{StaticResource StatLabel}"/>
                             <TextBlock x:Name="ManualText" Text="0" Style="{StaticResource StatValue}" Foreground="#52694A"/></StackPanel>
                     </Button>
-                    <Button Tag="1" Click="StatFilter_Click" Style="{StaticResource StatButton}" AutomationProperties.Name="筛选待复核">
-                        <StackPanel><TextBlock Text="待复核" Style="{StaticResource StatLabel}"/>
+                    <Button Tag="1" Click="StatFilter_Click" Style="{StaticResource StatButton}" AutomationProperties.Name="{DynamicResource '筛选待复核'}">
+                        <StackPanel><TextBlock Text="{DynamicResource '待复核'}" Style="{StaticResource StatLabel}"/>
                             <TextBlock x:Name="ReviewText" Text="0" Style="{StaticResource StatValue}" Foreground="#976129"/></StackPanel>
                     </Button>
-                    <Button Tag="6" Click="StatFilter_Click" Style="{StaticResource StatButton}" AutomationProperties.Name="筛选拍摄失败">
-                        <StackPanel><TextBlock Text="拍摄失败" Style="{StaticResource StatLabel}"/>
+                    <Button Tag="6" Click="StatFilter_Click" Style="{StaticResource StatButton}" AutomationProperties.Name="{DynamicResource '筛选拍摄失败'}">
+                        <StackPanel><TextBlock Text="{DynamicResource '拍摄失败'}" Style="{StaticResource StatLabel}"/>
                             <TextBlock x:Name="CaptureFailedText" Text="0" Style="{StaticResource StatValue}" Foreground="{StaticResource Failure}"/></StackPanel>
                     </Button>
-                    <Button Tag="4" Click="StatFilter_Click" Style="{StaticResource StatButton}" Margin="0" AutomationProperties.Name="筛选处理错误">
-                        <StackPanel><TextBlock Text="处理错误" Style="{StaticResource StatLabel}"/>
+                    <Button Tag="4" Click="StatFilter_Click" Style="{StaticResource StatButton}" Margin="0" AutomationProperties.Name="{DynamicResource '筛选处理错误'}">
+                        <StackPanel><TextBlock Text="{DynamicResource '处理错误'}" Style="{StaticResource StatLabel}"/>
                             <TextBlock x:Name="ErrorText" Text="0" Style="{StaticResource StatValue}" Foreground="{StaticResource Failure}"/></StackPanel>
                     </Button>
                 </UniformGrid>
@@ -251,19 +266,19 @@
                         <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <ComboBox x:Name="FilterBox" Width="124" SelectedIndex="0" SelectionChanged="Filter_Changed"
-                              Margin="0,0,7,0" AutomationProperties.Name="照片状态">
-                        <ComboBoxItem Content="全部照片"/>
-                        <ComboBoxItem Content="待复核"/>
-                        <ComboBoxItem Content="自动通过"/>
-                        <ComboBoxItem Content="人工确认"/>
-                        <ComboBoxItem Content="处理错误"/>
-                        <ComboBoxItem Content="未处理"/>
-                        <ComboBoxItem Content="拍摄失败"/>
-                        <ComboBoxItem Content="裁剪成功"/>
+                              Margin="0,0,7,0" AutomationProperties.Name="{DynamicResource '照片状态'}">
+                        <ComboBoxItem Content="{DynamicResource '全部照片'}"/>
+                        <ComboBoxItem Content="{DynamicResource '待复核'}"/>
+                        <ComboBoxItem Content="{DynamicResource '自动通过'}"/>
+                        <ComboBoxItem Content="{DynamicResource '人工确认'}"/>
+                        <ComboBoxItem Content="{DynamicResource '处理错误'}"/>
+                        <ComboBoxItem Content="{DynamicResource '未处理'}"/>
+                        <ComboBoxItem Content="{DynamicResource '拍摄失败'}"/>
+                        <ComboBoxItem Content="{DynamicResource '裁剪成功'}"/>
                     </ComboBox>
                     <Grid Grid.Column="1" Width="220" HorizontalAlignment="Left" Margin="0,0,10,0">
-                        <TextBox x:Name="SearchBox" TextChanged="Search_Changed" AutomationProperties.Name="按文件名搜索"/>
-                        <TextBlock Text="搜索文件名" Margin="10,0" VerticalAlignment="Center"
+                        <TextBox x:Name="SearchBox" TextChanged="Search_Changed" AutomationProperties.Name="{DynamicResource '按文件名搜索'}"/>
+                        <TextBlock Text="{DynamicResource '搜索文件名'}" Margin="10,0" VerticalAlignment="Center"
                                    Foreground="{StaticResource Muted}" IsHitTestVisible="False">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -278,11 +293,11 @@
                         </TextBlock>
                     </Grid>
                     <StackPanel Grid.Column="2" Orientation="Horizontal">
-                        <Button x:Name="RetryButton" Content="重试处理错误" Click="Retry_Click" Margin="0,0,7,0"/>
-                        <Button x:Name="ResumeReviewButton" Content="继续复核" Click="ResumeReview_Click" Margin="0,0,7,0"
+                        <Button x:Name="RetryButton" Content="{DynamicResource '重试处理错误'}" Click="Retry_Click" Margin="0,0,7,0"/>
+                        <Button x:Name="ResumeReviewButton" Content="{DynamicResource '继续复核'}" Click="ResumeReview_Click" Margin="0,0,7,0"
                                 Visibility="Collapsed"/>
-                        <Button x:Name="SelectPageButton" Content="选择本页" Click="SelectPage_Click" Margin="0,0,7,0"/>
-                        <Button x:Name="AcceptSelectedButton" Content="确认所选" Click="AcceptSelected_Click"/>
+                        <Button x:Name="SelectPageButton" Content="{DynamicResource '选择本页'}" Click="SelectPage_Click" Margin="0,0,7,0"/>
+                        <Button x:Name="AcceptSelectedButton" Content="{DynamicResource '确认所选'}" Click="AcceptSelected_Click"/>
                     </StackPanel>
                 </Grid>
 
@@ -302,10 +317,10 @@
                                                 <Grid.RowDefinitions><RowDefinition Height="142"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                                                 <Button Background="#E8EAE2" BorderThickness="0" Padding="0" Click="Photo_Click"
                                                         Tag="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
-                                                        ToolTip="打开照片与裁剪预览">
+                                                        ToolTip="{DynamicResource '打开照片与裁剪预览'}">
                                                     <Grid ClipToBounds="True">
                                                         <Image x:Name="PhotoThumbnail" Source="{Binding BoundaryKey, Converter={StaticResource BoundaryThumb}}" Stretch="Uniform"/>
-                                                        <TextBlock Text="无法显示原图" Foreground="{StaticResource Muted}"
+                                                        <TextBlock Text="{DynamicResource '无法显示原图'}" Foreground="{StaticResource Muted}"
                                                                    HorizontalAlignment="Center" VerticalAlignment="Center">
                                                             <TextBlock.Style>
                                                                 <Style TargetType="TextBlock">
@@ -337,7 +352,7 @@
                                                     <Grid>
                                                         <Grid.ColumnDefinitions><ColumnDefinition Width="22"/><ColumnDefinition/></Grid.ColumnDefinitions>
                                                         <CheckBox IsChecked="{Binding Selected}" IsEnabled="{Binding CanBulkConfirm}"
-                                                                  AutomationProperties.Name="选择照片" VerticalAlignment="Center"/>
+                                                                  AutomationProperties.Name="{DynamicResource '选择照片'}" VerticalAlignment="Center"/>
                                                         <TextBlock Grid.Column="1" Text="{Binding Name}" ToolTip="{Binding Record.RelativePath}"
                                                                    TextTrimming="CharacterEllipsis" FontWeight="Medium" VerticalAlignment="Center"/>
                                                     </Grid>
@@ -355,7 +370,7 @@
                         <Border x:Name="EmptyPanel" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1"
                                 CornerRadius="16" Padding="24" VerticalAlignment="Center" HorizontalAlignment="Center">
                             <StackPanel MaxWidth="390">
-                                <TextBlock x:Name="EmptyTitle" Text="尚未导入照片" FontSize="21" Style="{StaticResource Heading}"/>
+                                <TextBlock x:Name="EmptyTitle" Text="{DynamicResource '尚未导入照片'}" FontSize="21" Style="{StaticResource Heading}"/>
                                 <TextBlock x:Name="EmptyDetail" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,0"/>
                             </StackPanel>
                         </Border>
@@ -365,15 +380,15 @@
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                 <StackPanel VerticalAlignment="Center">
-                                    <TextBlock x:Name="PageInfo" Text="尚未导入照片" Foreground="{StaticResource Muted}"/>
+                                    <TextBlock x:Name="PageInfo" Text="{DynamicResource '尚未导入照片'}" Foreground="{StaticResource Muted}"/>
                                     <TextBlock x:Name="PageInputError" Foreground="{StaticResource Failure}" FontSize="12"
                                                TextWrapping="Wrap" Visibility="Collapsed" Margin="0,2,8,0"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock x:Name="PagePosition" Text="第 0 页 / 共 0 页" Foreground="{StaticResource SidebarInk}"
+                                    <TextBlock x:Name="PagePosition" Text="{DynamicResource '第 0 页 / 共 0 页'}" Foreground="{StaticResource SidebarInk}"
                                                FontWeight="Medium" Typography.NumeralAlignment="Tabular"
                                                VerticalAlignment="Center" Margin="0,0,14,0"/>
-                                    <Button x:Name="PrevPageButton" Content="上一页" Click="PrevPage_Click" IsEnabled="False"
+                                    <Button x:Name="PrevPageButton" Content="{DynamicResource '上一页'}" Click="PrevPage_Click" IsEnabled="False"
                                             Padding="11,6" Margin="0,0,6,0"/>
                                     <ComboBox x:Name="PageSelector" Width="82" Margin="0,0,6,0" IsEditable="True"
                                               Typography.NumeralAlignment="Tabular"
@@ -381,14 +396,14 @@
                                               ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True"
                                               VirtualizingPanel.VirtualizationMode="Recycling"
                                               SelectionChanged="PageSelector_SelectionChanged" PreviewKeyDown="PageSelector_PreviewKeyDown"
-                                              AutomationProperties.Name="页码" ToolTip="可下拉选页，或输入页码后按 Enter">
+                                              AutomationProperties.Name="{DynamicResource '页码'}" ToolTip="{DynamicResource '可下拉选页，或输入页码后按 Enter'}">
                                         <ComboBox.ItemsPanel>
                                             <ItemsPanelTemplate><VirtualizingStackPanel/></ItemsPanelTemplate>
                                         </ComboBox.ItemsPanel>
                                     </ComboBox>
-                                    <Button x:Name="JumpPageButton" Content="跳转" Click="JumpPage_Click" IsEnabled="False"
+                                    <Button x:Name="JumpPageButton" Content="{DynamicResource '跳转'}" Click="JumpPage_Click" IsEnabled="False"
                                             Padding="11,6" Margin="0,0,6,0"/>
-                                    <Button x:Name="NextPageButton" Content="下一页" Click="NextPage_Click" IsEnabled="False"
+                                    <Button x:Name="NextPageButton" Content="{DynamicResource '下一页'}" Click="NextPage_Click" IsEnabled="False"
                                             Padding="11,6"/>
                                 </StackPanel>
                             </Grid>
@@ -405,7 +420,7 @@
                                     <TextBlock x:Name="EditorName" Foreground="White" TextTrimming="CharacterEllipsis"
                                                ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
                                 </Border>
-                                <TextBlock Text="滚轮缩放 · 中键平移 · 拖动角点" Foreground="#D6DED2"
+                                <TextBlock Text="{DynamicResource '滚轮缩放 · 中键平移 · 拖动角点'}" Foreground="#D6DED2"
                                            VerticalAlignment="Bottom" Margin="12" IsHitTestVisible="False"/>
                             </Grid>
                         </local:RoundedClipBorder>
@@ -415,11 +430,11 @@
                                 <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                     <StackPanel>
-                                        <TextBlock Text="裁剪预览" Style="{StaticResource Heading}" FontSize="17"/>
+                                        <TextBlock Text="{DynamicResource '裁剪预览'}" Style="{StaticResource Heading}" FontSize="17"/>
                                         <local:RoundedClipBorder x:Name="PreviewFrame" Background="#EEF0E8" CornerRadius="9" Margin="0,8,0,6" Height="208">
                                             <Image x:Name="PreviewImage" Stretch="Uniform"/>
                                         </local:RoundedClipBorder>
-                                        <TextBlock x:Name="PreviewInfo" Text="选满四角后生成预览" Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+                                        <TextBlock x:Name="PreviewInfo" Text="{DynamicResource '选满四角后生成预览'}" Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
                                         <Border Background="#F7F0E5" CornerRadius="8" Margin="0,7,0,9" Padding="9,5">
                                             <TextBlock x:Name="ReasonText" TextWrapping="Wrap" Foreground="#79501D" FontSize="12"
                                                        LineHeight="18" LineStackingStrategy="BlockLineHeight"/>
@@ -430,28 +445,28 @@
 
                                 <StackPanel Grid.Row="1" Margin="0,8,0,0">
                                     <UniformGrid Rows="1" Margin="0,0,0,6">
-                                        <Button Content="重新识别" Click="Detect_Click" Padding="4,5" Margin="0,0,4,0"/>
-                                        <Button x:Name="CandidateButton" Content="换候选框" Click="Candidate_Click" Padding="4,5" Margin="0,0,4,0" IsEnabled="False"/>
-                                        <Button Content="角点工具 ▾" Click="CornerTools_Click" Padding="4,5"/>
+                                        <Button Content="{DynamicResource '重新识别'}" Click="Detect_Click" Padding="4,5" Margin="0,0,4,0"/>
+                                        <Button x:Name="CandidateButton" Content="{DynamicResource '换候选框'}" Click="Candidate_Click" Padding="4,5" Margin="0,0,4,0" IsEnabled="False"/>
+                                        <Button Content="{DynamicResource '角点工具 ▾'}" Click="CornerTools_Click" Padding="4,5"/>
                                     </UniformGrid>
-                                    <Button x:Name="SaveNextButton" Content="确认保存并下一张  ↵" Click="SaveNext_Click"
+                                    <Button x:Name="SaveNextButton" Content="{DynamicResource '确认保存并下一张  ↵'}" Click="SaveNext_Click"
                                             Style="{StaticResource Primary}" Margin="0,0,0,6"/>
                                     <UniformGrid Rows="1">
-                                        <Button x:Name="PreviousReviewButton" Content="上一张" Click="PreviousReview_Click" Padding="4,5" Margin="0,0,4,0"/>
-                                        <Button x:Name="NextReviewButton" Content="下一张" Click="Skip_Click" Padding="4,5"/>
+                                        <Button x:Name="PreviousReviewButton" Content="{DynamicResource '上一张'}" Click="PreviousReview_Click" Padding="4,5" Margin="0,0,4,0"/>
+                                        <Button x:Name="NextReviewButton" Content="{DynamicResource '下一张'}" Click="Skip_Click" Padding="4,5"/>
                                     </UniformGrid>
                                     <Border Height="1" Background="{StaticResource Line}" Margin="0,10,0,8"/>
-                                    <Label Content="拍摄失败原因" Target="{Binding ElementName=CaptureReasonBox}" Padding="0"
+                                    <Label Content="{DynamicResource '拍摄失败原因'}" Target="{Binding ElementName=CaptureReasonBox}" Padding="0"
                                            Foreground="{StaticResource Failure}" FontWeight="Medium" Margin="0,0,0,4"/>
                                     <ComboBox x:Name="CaptureReasonBox" SelectedIndex="0" SelectionChanged="CaptureReason_Changed" Margin="0,0,0,6">
-                                        <ComboBoxItem Content="请选择原因"/>
-                                        <ComboBoxItem Content="严重模糊"/>
-                                        <ComboBoxItem Content="反光遮挡"/>
-                                        <ComboBoxItem Content="目标缺失"/>
-                                        <ComboBoxItem Content="未拍完整"/>
-                                        <ComboBoxItem Content="其他原因"/>
+                                        <ComboBoxItem Content="{DynamicResource '请选择原因'}"/>
+                                        <ComboBoxItem Content="{DynamicResource '严重模糊'}" Tag="严重模糊"/>
+                                        <ComboBoxItem Content="{DynamicResource '反光遮挡'}" Tag="反光遮挡"/>
+                                        <ComboBoxItem Content="{DynamicResource '目标缺失'}" Tag="目标缺失"/>
+                                        <ComboBoxItem Content="{DynamicResource '未拍完整'}" Tag="未拍完整"/>
+                                        <ComboBoxItem Content="{DynamicResource '其他原因'}" Tag="其他原因"/>
                                     </ComboBox>
-                                    <Button x:Name="MarkCaptureFailedButton" Content="标记拍摄失败并下一张" Click="Reject_Click"
+                                    <Button x:Name="MarkCaptureFailedButton" Content="{DynamicResource '标记拍摄失败并下一张'}" Click="Reject_Click"
                                             Style="{StaticResource Destructive}" Padding="8,7" IsEnabled="False"/>
                                 </StackPanel>
                             </Grid>
@@ -464,7 +479,7 @@
                                  Background="#E1E5D9" BorderThickness="0"/>
                     <Grid Margin="0,6,0,0">
                         <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                        <TextBlock x:Name="StatusLine" Text="就绪" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis"
+                        <TextBlock x:Name="StatusLine" Text="{DynamicResource '就绪'}" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis"
                                    ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
                         <TextBlock Grid.Column="1" x:Name="ElapsedText" Foreground="{StaticResource Muted}"
                                    Typography.NumeralAlignment="Tabular" Margin="8,0,0,0"/>

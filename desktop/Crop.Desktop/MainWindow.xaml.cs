@@ -21,8 +21,8 @@ public sealed class PhotoCard(BatchEngine engine, PhotoRecord record) : INotifyP
     public string Name => Path.GetFileName(Record.RelativePath);
     public PhotoState State => Record.Error != PhotoError.None && (Record.PendingWrite is not null || Record.PendingRemoval is not null)
         ? PhotoState.Error : Record.State;
-    public string Reason => string.Join(" · ",Record.Reasons);
-    public string StatusText => State switch { PhotoState.Pending=>"未处理",PhotoState.Processing=>"定位中…",PhotoState.AutoAccepted=>"自动通过",PhotoState.NeedsReview=>"待复核",PhotoState.Confirmed=>"人工确认",PhotoState.Rejected=>"拍摄失败",_=>"处理错误" };
+    public string Reason => string.Join(" · ", Record.Reasons.Select(UiText.Text));
+    public string StatusText => UiText.Text(State switch { PhotoState.Pending=>"未处理",PhotoState.Processing=>"定位中…",PhotoState.AutoAccepted=>"自动通过",PhotoState.NeedsReview=>"待复核",PhotoState.Confirmed=>"人工确认",PhotoState.Rejected=>"拍摄失败",_=>"处理错误" });
     public bool HasCropPreview => Record.Output is not null &&
         Record.State is PhotoState.AutoAccepted or PhotoState.Confirmed or PhotoState.NeedsReview;
     public bool CanBulkConfirm => Record.Corners?.Length == 4 &&
@@ -33,6 +33,7 @@ public sealed class PhotoCard(BatchEngine engine, PhotoRecord record) : INotifyP
     public bool Selected {get=>selected;set {selected=value;Changed(nameof(Selected));}}
     public event PropertyChangedEventHandler? PropertyChanged;
     private void Changed(string property)=>PropertyChanged?.Invoke(this,new(property));
+    public void RefreshLabels() { Changed(nameof(StatusText)); Changed(nameof(Reason)); }
     public void Refresh()
     {
         if (!CanBulkConfirm && Selected) Selected = false;
@@ -96,6 +97,7 @@ public sealed class BoundaryThumbConverter : IValueConverter
 public partial class MainWindow : System.Windows.Window
 {
     private BatchEngine? engine;
+    private HelpWindow? helpWindow;
     private List<PhotoCard> cards = [], filtered = [], reviewQueue = [];
     private readonly Dictionary<PhotoCard, PhotoState> counted = new();
     private readonly int[] stateCounts = new int[Enum.GetValues<PhotoState>().Length];
@@ -121,6 +123,7 @@ public partial class MainWindow : System.Windows.Window
 
     private sealed class AppPreferences
     {
+        public string Language { get; set; } = UiText.Chinese;
         public string Source { get; set; } = "";
         public string Output { get; set; } = "";
         public CropOptions Options { get; set; } = new();
@@ -134,17 +137,20 @@ public partial class MainWindow : System.Windows.Window
     {
         preferencesPath = isolatedPreferencesPath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "ScreenCrop", "preferences.json");
-        InitializeComponent();
-        progressTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
-        progressTimer.Tick += (_, _) => FlushProgress();
-        Surface.PointsChanged += Surface_Changed;
-        PreviewKeyDown += Window_KeyDown;
         try
         {
             if (File.Exists(preferencesPath))
                 preferences = System.Text.Json.JsonSerializer.Deserialize<AppPreferences>(File.ReadAllText(preferencesPath), Store.Json) ?? new();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException) { }
+        UiText.SetLanguage(preferences.Language);
+        InitializeComponent();
+        ApplyCulture();
+        AppLanguageSelector.SelectedIndex = UiText.Language == UiText.English ? 1 : 0;
+        progressTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
+        progressTimer.Tick += (_, _) => FlushProgress();
+        Surface.PointsChanged += Surface_Changed;
+        PreviewKeyDown += Window_KeyDown;
         SourceBox.Text = preferences.Source;
         OutputBox.Text = preferences.Output;
         ApplyOptions(preferences.Options);
@@ -158,7 +164,7 @@ public partial class MainWindow : System.Windows.Window
         EditorPanel.IsEnabled = !value;
         RefreshActions();
     }
-    private void Say(string message) => StatusLine.Text = message;
+    private void Say(string message) => SetText(StatusLine, message);
     private bool Available() => !(engine?.IsRunning ?? false) && !editing;
     private int Count(PhotoState state) => stateCounts[(int)state];
 
@@ -187,10 +193,10 @@ public partial class MainWindow : System.Windows.Window
             visible ? Visibility.Collapsed : Visibility.Visible;
         BackButton.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
         RunButton.Visibility = visible ? Visibility.Collapsed : Visibility.Visible;
-        WorkspaceTitle.Text = visible ? "照片复核" : "批量裁剪";
-        Subtitle.Text = engine is null ? "选择照片目录，或打开已有批次" :
+        SetText(WorkspaceTitle, visible ? "照片复核" : "批量裁剪");
+        SetText(Subtitle, engine is null ? "选择照片目录，或打开已有批次" :
             visible ? $"第 {Math.Max(1, reviewQueue.IndexOf(current!) + 1)} 张 / 共 {Math.Max(1, reviewQueue.Count)} 张" :
-            $"{Path.GetFileName(engine.Batch.Source)}  /  {engine.Batch.Photos.Count} 张照片";
+            $"{Path.GetFileName(engine.Batch.Source)}  /  {engine.Batch.Photos.Count} 张照片");
     }
 
     private void EditorPanel_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -239,7 +245,7 @@ public partial class MainWindow : System.Windows.Window
         SetupPanel.IsEnabled = false;
         LockedHint.Visibility = Visibility.Visible;
         ResultsButton.IsEnabled = true;
-        RunButton.Content = "继续处理";
+        SetCaption(RunButton, "继续处理");
         ShowEditor(false);
         restoringFilter = true;
         try
@@ -282,10 +288,10 @@ public partial class MainWindow : System.Windows.Window
                 7 => c.State is PhotoState.AutoAccepted or PhotoState.Confirmed, _ => true
             }).ToList();
         RenderPage(resetPageInput);
-        PageInfo.Text = engine is null ? "尚未导入照片" : $"{filtered.Count} 张照片";
+        SetText(PageInfo, engine is null ? "尚未导入照片" : $"{filtered.Count} 张照片");
         EmptyPanel.Visibility = filtered.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        EmptyTitle.Text = engine is null ? "尚未导入照片" : "没有符合筛选的照片";
-        EmptyDetail.Text = engine is null ? "拖入照片，或在左侧选择照片与结果目录。" : "可更改状态或文件名筛选。";
+        SetText(EmptyTitle, engine is null ? "尚未导入照片" : "没有符合筛选的照片");
+        SetText(EmptyDetail, engine is null ? "拖入照片，或在左侧选择照片与结果目录。" : "可更改状态或文件名筛选。");
         RefreshActions();
     }
 
@@ -306,7 +312,7 @@ public partial class MainWindow : System.Windows.Window
         if (pageChanged || countChanged || resetPageInput)
         {
             if (pageChanged || countChanged)
-                PagePosition.Text = $"第 {number} 页 / 共 {count} 页";
+                SetText(PagePosition, $"第 {number} 页 / 共 {count} 页");
             string? draft = !resetPageInput && !pageChanged && count > 1 && PageSelector.IsKeyboardFocusWithin
                 ? PageSelector.Text : null;
             syncingPage = true;
@@ -372,12 +378,12 @@ public partial class MainWindow : System.Windows.Window
             NavigateToPage(number);
             return;
         }
-        PageInputError.Text = $"请输入 1–{PageCount} 的页码。";
+        SetText(PageInputError, $"请输入 1–{PageCount} 的页码。");
         PageInputError.Visibility = Visibility.Visible;
     }
     private static string? Folder(string title)
     {
-        var dialog = new OpenFolderDialog { Title = title, Multiselect = false };
+        var dialog = new OpenFolderDialog { Title = UiText.Text(title), Multiselect = false };
         return dialog.ShowDialog() == true ? dialog.FolderName : null;
     }
 
@@ -388,15 +394,15 @@ public partial class MainWindow : System.Windows.Window
     }
     private void Files_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog { Title = "选择要裁剪的照片", Multiselect = true,
-            Filter = "照片|*.jpg;*.jpeg;*.png;*.bmp;*.tif;*.tiff;*.webp" };
+        var dialog = new OpenFileDialog { Title = UiText.Text("选择要裁剪的照片"), Multiselect = true,
+            Filter = UiText.Text("照片|*.jpg;*.jpeg;*.png;*.bmp;*.tif;*.tiff;*.webp") };
         if (dialog.ShowDialog(this) == true) SetSource(Path.GetDirectoryName(dialog.FileName)!, dialog.FileNames);
     }
     private void SetSource(string directory, string[]? files)
     {
         selectedFiles = files;
         SourceBox.IsReadOnly = files is not null;
-        SourceBox.Text = files is null ? directory : $"{files.Length} 张已选照片";
+        SourceBox.Text = files is null ? directory : UiText.Text($"{files.Length} 张已选照片");
         SourceBox.ToolTip = files is null ? directory : string.Join(Environment.NewLine, files.Take(12));
         if (!string.IsNullOrWhiteSpace(directory) && string.IsNullOrWhiteSpace(OutputBox.Text))
             OutputBox.Text = Path.Combine(Path.GetDirectoryName(directory) ?? directory, Path.GetFileName(directory) + "_裁剪结果");
@@ -415,8 +421,8 @@ public partial class MainWindow : System.Windows.Window
         else Say("可拖入一个文件夹，或一组 JPG、PNG、BMP、TIFF、WebP 照片。");
     }
 
-    private bool DiscardEdits() => !dirty || MessageBox.Show(this, "当前四角尚未保存。放弃这次调整？", "未保存的调整",
-        MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+    private bool DiscardEdits() => !dirty || AppDialog.Confirm(this,
+        "当前四角尚未保存。放弃这次调整？", "未保存的调整", "放弃调整", preferCancel: true);
 
     private void New_Click(object sender, RoutedEventArgs e)
     {
@@ -439,9 +445,9 @@ public partial class MainWindow : System.Windows.Window
         SetupPanel.IsEnabled = true;
         LockedHint.Visibility = Visibility.Collapsed;
         ResultsButton.IsEnabled = false;
-        ExportFailuresButton.Content = "导出拍摄失败表";
-        RunButton.Content = "开始整批处理";
-        ElapsedText.Text = "";
+        SetCaption(ExportFailuresButton, "导出拍摄失败表");
+        SetCaption(RunButton, "开始整批处理");
+        SetText(ElapsedText, "");
         ShowEditor(false);
         FilterBox.SelectedIndex = 0;
         SearchBox.Clear();
@@ -542,7 +548,7 @@ public partial class MainWindow : System.Windows.Window
         ApplyFilter();
         if (lastProgress is BatchProgress last && engine?.IsRunning == true)
             Say($"{last.Index} / {last.Total} · {last.Photo.RelativePath} · {cards[last.Index - 1].StatusText}");
-        ElapsedText.Text = "已用 " + timer.Elapsed.ToString(@"mm\:ss", CultureInfo.InvariantCulture);
+        SetText(ElapsedText, "已用 " + timer.Elapsed.ToString(@"mm\:ss", CultureInfo.InvariantCulture));
     }
 
     private async void Retry_Click(object sender, RoutedEventArgs e)
@@ -590,8 +596,7 @@ public partial class MainWindow : System.Windows.Window
         if (engine is null || !Available()) return;
         var selected = cards.Where(card => card.Selected && card.CanBulkConfirm).ToList();
         if (selected.Count == 0) { Say("请先勾选已经检查过的照片。"); return; }
-        if (MessageBox.Show(this, $"确认保存已勾选的 {selected.Count} 张照片？", "批量确认",
-            MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
+        if (!AppDialog.Confirm(this, $"确认保存已勾选的 {selected.Count} 张照片？", "批量确认", "保存")) return;
         var batch = engine;
         var succeeded = new List<string>();
         var skipped = new List<string>();
@@ -632,8 +637,11 @@ public partial class MainWindow : System.Windows.Window
         ShowDetails("批量确认结果", new[] { summary, "",
             Block("成功", succeeded), Block("跳过", skipped), Block("失败或待恢复", failed), batch.ReportWarning ?? "" });
 
-        static string Block(string caption, List<string> files) => files.Count == 0 ? caption + " 0 张" :
-            caption + " " + files.Count + " 张\n" + string.Join("\n", files);
+        static string Block(string caption, List<string> files)
+        {
+            string heading = UiText.Text(caption) + " · " + UiText.Text($"{files.Count} 张");
+            return files.Count == 0 ? heading : heading + "\n" + string.Join("\n", files.Select(UiText.Text));
+        }
     }
 
     private async Task<bool> AcceptWithConflictAsync(BatchEngine batch, PhotoCard card, PixelPoint[] points, int rotation, string? hash = null)
@@ -649,8 +657,8 @@ public partial class MainWindow : System.Windows.Window
             catch (OutputConflictException conflict)
             {
                 string file = Path.GetRelativePath(batch.Batch.Destination, conflict.TargetPath);
-                if (MessageBox.Show(this, $"「{file}」的内容与上次保存时不同。是否用这次的裁剪结果覆盖？",
-                    "确认覆盖导出文件", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+                if (!AppDialog.Confirm(this, $"「{file}」的内容与上次保存时不同。是否用这次的裁剪结果覆盖？",
+                    "确认覆盖导出文件", "覆盖", preferCancel: true))
                     return false;
                 approval = new CropOverwrite(conflict.TargetPath, conflict.ExistingHash);
             }
@@ -675,7 +683,8 @@ public partial class MainWindow : System.Windows.Window
         var choice = SizeBox.Items.OfType<ComboBoxItem>().FirstOrDefault(item => item.Tag?.ToString() == options.OutputSize.ToString());
         if (choice is null)
         {
-            choice = new ComboBoxItem { Content = $"长边 {options.OutputSize} 像素", Tag = options.OutputSize.ToString() };
+            choice = new ComboBoxItem { Tag = options.OutputSize.ToString() };
+            SetCaption(choice, $"长边 {options.OutputSize} 像素");
             SizeBox.Items.Add(choice);
         }
         SizeBox.SelectedItem = choice;
@@ -717,7 +726,7 @@ public partial class MainWindow : System.Windows.Window
 
     private void AddMenu(ContextMenu menu, string label, Func<Task> action, bool enabled = true)
     {
-        var item = new MenuItem { Header = label, IsEnabled = enabled };
+        var item = new MenuItem { Header = UiText.Text(label), IsEnabled = enabled };
         item.Click += async (_, _) =>
         {
             try { await action(); }
@@ -743,7 +752,7 @@ public partial class MainWindow : System.Windows.Window
     private async Task BackupAsync()
     {
         if (engine is null) return;
-        var dialog = new SaveFileDialog { Title = "导出批次备份", Filter = "ZIP 备份|*.zip",
+        var dialog = new SaveFileDialog { Title = UiText.Text("导出批次备份"), Filter = UiText.Text("ZIP 备份|*.zip"),
             FileName = $"ScreenCrop-{engine.Batch.CreatedAt:yyyyMMdd-HHmmss}.zip", AddExtension = true, OverwritePrompt = false };
         if (dialog.ShowDialog(this) != true) return;
         var batch = engine;
@@ -769,22 +778,25 @@ public partial class MainWindow : System.Windows.Window
     {
         if (engine is null) return;
         string[] groups = cards.GroupBy(card => Path.GetDirectoryName(card.Record.RelativePath) ?? "")
-            .OrderBy(group => group.Key).Select(group =>
-                $"{(group.Key == "" ? "根目录" : group.Key)}  ·  {group.Count()} 张  ·  " +
-                $"自动 {group.Count(card => card.State == PhotoState.AutoAccepted)}  人工 {group.Count(card => card.State == PhotoState.Confirmed)}  " +
-                $"待复核 {group.Count(card => card.State == PhotoState.NeedsReview)}  " +
-                $"拍摄失败 {group.Count(card => card.State == PhotoState.Rejected)}  处理错误 {group.Count(card => card.State == PhotoState.Error)}").ToArray();
+            .OrderBy(group => group.Key).Select(group => string.Join(" · ",
+                group.Key == "" ? UiText.Text("根目录") : group.Key,
+                UiText.Text($"{group.Count()} 张"),
+                UiText.Text($"自动 {group.Count(card => card.State == PhotoState.AutoAccepted)}"),
+                UiText.Text($"人工 {group.Count(card => card.State == PhotoState.Confirmed)}"),
+                UiText.Text($"待复核 {group.Count(card => card.State == PhotoState.NeedsReview)}"),
+                UiText.Text($"拍摄失败 {group.Count(card => card.State == PhotoState.Rejected)}"),
+                UiText.Text($"处理错误 {group.Count(card => card.State == PhotoState.Error)}"))).ToArray();
         var reasons = cards.Where(card => card.State == PhotoState.Rejected).GroupBy(card => card.Reason)
-            .OrderByDescending(group => group.Count()).Select(group => $"{group.Key}  ·  {group.Count()} 张").ToArray();
+            .OrderByDescending(group => group.Count()).Select(group => group.Key + " · " + UiText.Text($"{group.Count()} 张")).ToArray();
         ShowDetails("批次统计", new[] { "按拍摄失败原因", reasons.Length == 0 ? "0 张" : string.Join("\n", reasons),
             "", "按子目录", string.Join("\n", groups) });
     }
 
     private void ShowDetails(string title, IEnumerable<string> lines)
     {
-        var content = new TextBlock { Text = string.Join("\n", lines), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(15) };
+        var content = new TextBlock { Text = string.Join("\n", lines.Select(UiText.Text)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(15) };
         var scroll = new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        var dialog = new System.Windows.Window { Title = title, Owner = this, Content = scroll, Width = 640, Height = 445,
+        var dialog = new System.Windows.Window { Title = UiText.Text(title), Owner = this, Content = scroll, Width = 640, Height = 445,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, Style = (Style)FindResource("WindowTypography") };
         dialog.ShowDialog();
     }
@@ -838,9 +850,9 @@ public partial class MainWindow : System.Windows.Window
         ShowEditor(true);
         EditorName.Text = card.Record.RelativePath;
         CaptureReasonBox.SelectedIndex = 0;
-        PreviewInfo.Text = "选满四角后生成预览";
-        ReasonText.Text = card.Reason.Length > 0 ? card.Reason : card.State == PhotoState.AutoAccepted
-            ? "四边证据满足自动通过规则，可继续检查角点。" : "检查完整图片边界，确认后保存。";
+        SetText(PreviewInfo, "选满四角后生成预览");
+        SetText(ReasonText, card.Record.Reasons.Length > 0 ? string.Join("；", card.Record.Reasons) : card.State == PhotoState.AutoAccepted
+            ? "四边证据满足自动通过规则，可继续检查角点。" : "检查完整图片边界，确认后保存。");
         SaveNextButton.IsEnabled = false;
         SetCandidates(card.Record.Corners, card.Record.Alternatives);
         try
@@ -857,8 +869,8 @@ public partial class MainWindow : System.Windows.Window
         }
         catch (Exception ex)
         {
-            PreviewInfo.Text = "无法打开原照片";
-            ReasonText.Text = ex.Message;
+            SetText(PreviewInfo, "无法打开原照片");
+            SetText(ReasonText, ex.Message);
             Say("打开失败：" + ex.Message);
         }
         finally
@@ -894,7 +906,7 @@ public partial class MainWindow : System.Windows.Window
         {
             previewRequest?.Cancel();
             PreviewImage.Source = null;
-            PreviewInfo.Text = $"已选 {Surface.Points.Count} / 4 个角点";
+            SetText(PreviewInfo, $"已选 {Surface.Points.Count} / 4 个角点");
         }
     }
 
@@ -925,7 +937,7 @@ public partial class MainWindow : System.Windows.Window
             }, request.Token);
             if (previewRequest != request) return;
             PreviewImage.Source = bitmap;
-            PreviewInfo.Text = $"预览 {bitmap.PixelWidth} × {bitmap.PixelHeight} · 内切 {options.InsetPixels} px · 旋转 {rotation}°";
+            SetText(PreviewInfo, $"预览 {bitmap.PixelWidth} × {bitmap.PixelHeight} · 内切 {options.InsetPixels} px · 旋转 {rotation}°");
             SaveNextButton.IsEnabled = true;
         }
         catch (OperationCanceledException) { }
@@ -934,7 +946,7 @@ public partial class MainWindow : System.Windows.Window
             if (previewRequest == request)
             {
                 PreviewImage.Source = null;
-                PreviewInfo.Text = ex.Message;
+                SetText(PreviewInfo, ex.Message);
                 SaveNextButton.IsEnabled = false;
             }
         }
@@ -959,7 +971,7 @@ public partial class MainWindow : System.Windows.Window
         candidates = primary is null ? [] : new[] { primary }.Concat(alternatives ?? []).ToArray();
         candidateIndex = 0;
         CandidateInfo.Visibility = candidates.Length > 1 ? Visibility.Visible : Visibility.Collapsed;
-        CandidateInfo.Text = $"候选框 1 / {candidates.Length}";
+        SetText(CandidateInfo, $"候选框 1 / {candidates.Length}");
         RefreshActions();
     }
 
@@ -973,7 +985,7 @@ public partial class MainWindow : System.Windows.Window
             double sx = originalWidth / (double)snapshot.Width, sy = originalHeight / (double)snapshot.Height;
             bool square = engine.Batch.Options.Square;
             var result = await Task.Run(() => new FrameDetector().Detect(snapshot, square, mode: DetectionMode.Difficult));
-            ReasonText.Text = result.Automatic ? "已重新定位，可检查角点后保存。" : string.Join("；", result.Reasons);
+            SetText(ReasonText, result.Automatic ? "已重新定位，可检查角点后保存。" : string.Join("；", result.Reasons));
             if (result.Corners is not null)
             {
                 PixelPoint[] Map(Point2f[] quad) =>
@@ -995,7 +1007,7 @@ public partial class MainWindow : System.Windows.Window
         if (candidates.Length <= 1) return;
         candidateIndex = (candidateIndex + 1) % candidates.Length;
         Surface.SetPoints(candidates[candidateIndex]);
-        CandidateInfo.Text = $"候选框 {candidateIndex + 1} / {candidates.Length}";
+        SetText(CandidateInfo, $"候选框 {candidateIndex + 1} / {candidates.Length}");
         Surface.Focus();
     }
 
@@ -1005,7 +1017,7 @@ public partial class MainWindow : System.Windows.Window
         var menu = new ContextMenu { PlacementTarget = button };
         void Add(string label, Action action)
         {
-            var item = new MenuItem { Header = label };
+            var item = new MenuItem { Header = UiText.Text(label) };
             item.Click += (_, _) => { action(); Surface.Focus(); };
             menu.Items.Add(item);
         }
@@ -1067,7 +1079,7 @@ public partial class MainWindow : System.Windows.Window
     private async Task MarkCaptureFailedAsync()
     {
         if (engine is null || current is null || !Available() ||
-            CaptureReasonBox.SelectedIndex <= 0 || CaptureReasonBox.SelectedItem is not ComboBoxItem { Content: string reason }) return;
+            CaptureReasonBox.SelectedIndex <= 0 || CaptureReasonBox.SelectedItem is not ComboBoxItem { Tag: string reason }) return;
         var batch = engine;
         var card = current;
         SetEditing(true);
@@ -1079,8 +1091,8 @@ public partial class MainWindow : System.Windows.Window
         Say(batch.ReportWarning ?? $"已归档 {card.Name} · {reason}。可更新拍摄失败表。");
     }
 
-    private void UpdateReportStatus() => ExportFailuresButton.Content =
-        engine?.FailureReportOutdated() == true ? "更新拍摄失败表" : "导出拍摄失败表";
+    private void UpdateReportStatus() => SetCaption(ExportFailuresButton,
+        engine?.FailureReportOutdated() == true ? "更新拍摄失败表" : "导出拍摄失败表");
 
     private async void ExportFailures_Click(object sender, RoutedEventArgs e) => await ExportFailuresAsync(false);
 
@@ -1122,8 +1134,31 @@ public partial class MainWindow : System.Windows.Window
         if (Available() && DiscardEdits()) BackToOverview();
     }
 
+    private void Help_Click(object sender, RoutedEventArgs e) => ShowHelp();
+
+    private void ShowHelp()
+    {
+        if (helpWindow is not null)
+        {
+            helpWindow.Activate();
+            return;
+        }
+
+        var guide = new HelpWindow(EditorPanel.Visibility == Visibility.Visible ? "review" : "start") { Owner = this };
+        helpWindow = guide;
+        guide.LanguageRequested += ChangeLanguage;
+        guide.Closed += (_, _) => helpWindow = null;
+        guide.Show();
+    }
+
     private async void Window_KeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.F1)
+        {
+            e.Handled = true;
+            ShowHelp();
+            return;
+        }
         if (!Available() || EditorPanel.Visibility != Visibility.Visible ||
             e.OriginalSource is TextBox or System.Windows.Controls.Primitives.ButtonBase || CaptureReasonBox.IsKeyboardFocusWithin || e.IsRepeat)
             return;
@@ -1163,7 +1198,7 @@ public partial class MainWindow : System.Windows.Window
         NavigateToPage(1);
         int count = PageCount;
         if (PrevPageButton.IsEnabled || !NextPageButton.IsEnabled ||
-            PagePosition.Text != $"第 1 页 / 共 {count} 页" || PageSelector.Items.Count != count)
+            PagePosition.Text != UiText.Text($"第 1 页 / 共 {count} 页") || PageSelector.Items.Count != count)
             throw new InvalidOperationException("Initial page or total page count is incorrect.");
         checks.Add("initial page and total");
 
@@ -1176,7 +1211,7 @@ public partial class MainWindow : System.Windows.Window
 
         PageSelector.Text = "2";
         JumpPage_Click(JumpPageButton, new RoutedEventArgs());
-        if (page != 1 || PagePosition.Text != $"第 2 页 / 共 {count} 页")
+        if (page != 1 || PagePosition.Text != UiText.Text($"第 2 页 / 共 {count} 页"))
             throw new InvalidOperationException("Typed page did not open page two.");
         PageSelector.Text = "1";
         var enter = new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(PageSelector),
@@ -1190,7 +1225,7 @@ public partial class MainWindow : System.Windows.Window
         if (page != 0 || PageInputError.Visibility != Visibility.Visible)
             throw new InvalidOperationException("An out-of-range page should leave the current page visible.");
         SearchBox.Text = "no-synthetic-photo-82747";
-        if (PageCount != 0 || PagePosition.Text != "第 0 页 / 共 0 页" ||
+        if (PageCount != 0 || PagePosition.Text != UiText.Text("第 0 页 / 共 0 页") ||
             PageSelector.IsEnabled || JumpPageButton.IsEnabled || NextPageButton.IsEnabled)
             throw new InvalidOperationException("No-match search left page controls enabled.");
         SearchBox.Clear();
@@ -1249,7 +1284,7 @@ public partial class MainWindow : System.Windows.Window
         CaptureReasonBox.SelectedIndex = 2;
         if (!MarkCaptureFailedButton.IsEnabled) throw new Exception("Capture failure action inaccessible");
         await MarkCaptureFailedAsync();
-        if (capture.State != PhotoState.Rejected || capture.Reason != "反光遮挡" || Count(PhotoState.Rejected) == 0)
+        if (capture.State != PhotoState.Rejected || !capture.Record.Reasons.SequenceEqual(["反光遮挡"]) || Count(PhotoState.Rejected) == 0)
             throw new Exception("Capture failure reason or count mismatch");
         if (engine.OutputPath(capture.Record) is not string archive || Store.Hash(archive) != Store.Hash(engine.SourcePath(capture.Record)))
             throw new Exception("Original photo was not archived");

@@ -1,0 +1,80 @@
+<Window x:Class="Crop.Desktop.HelpWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ScreenCrop · 使用说明" Icon="ScreenCrop.ico"
+        Style="{StaticResource WindowTypography}" Background="{StaticResource Canvas}"
+        Width="870" Height="620" MinWidth="700" MinHeight="470"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        UseLayoutRounding="True" PreviewKeyDown="Help_PreviewKeyDown">
+    <Window.Resources>
+        <Style x:Key="GuideTopicItem" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="10,7"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Margin" Value="0,0,0,3"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="ItemFace" Background="Transparent" CornerRadius="7"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemFace" Property="Background" Value="#E7EEE3"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemFace" Property="Background" Value="#DCE9D9"/>
+                                <Setter Property="FontWeight" Value="Medium"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="18">
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+        <Grid Margin="0,0,0,14">
+            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <TextBlock x:Name="GuideTitle" Style="{StaticResource Heading}" FontSize="24" VerticalAlignment="Center"/>
+            <ComboBox x:Name="LanguageSelector" Grid.Column="1" Width="120" VerticalAlignment="Center"
+                      SelectionChanged="Language_Changed" AutomationProperties.Name="{DynamicResource '语言 / Language'}">
+                <ComboBoxItem Content="简体中文" Tag="zh-CN"/>
+                <ComboBoxItem Content="English" Tag="en-US"/>
+            </ComboBox>
+        </Grid>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="208"/><ColumnDefinition/></Grid.ColumnDefinitions>
+            <Border Background="#EEF2E9" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                    CornerRadius="12" Margin="0,0,12,0" Padding="9">
+                <ListBox x:Name="TopicList" Background="Transparent" Foreground="{StaticResource Ink}" BorderThickness="0"
+                         ItemContainerStyle="{StaticResource GuideTopicItem}" DisplayMemberPath="Title"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="Topic_Changed"/>
+            </Border>
+            <Border Grid.Column="1" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                    CornerRadius="12" Padding="4,9">
+                <ScrollViewer x:Name="ReadingPane" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled" Padding="16,7,16,4">
+                    <StackPanel>
+                        <TextBlock x:Name="TopicTitle" Style="{StaticResource Heading}" FontSize="21"
+                                   TextWrapping="Wrap" Margin="0,0,0,14"/>
+                        <ItemsControl x:Name="Instructions">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,0,0,14">
+                                        <TextBlock Text="{Binding Heading}" Style="{StaticResource Heading}" FontSize="15"
+                                                   TextWrapping="Wrap" Margin="0,0,0,3"/>
+                                        <TextBlock Text="{Binding Body}" FontSize="14" Foreground="{StaticResource Muted}"
+                                                   TextWrapping="Wrap" LineHeight="23" LineStackingStrategy="BlockLineHeight"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

@@ -1,41 +1,44 @@
 # 更新记录 / Changelog
 
+## 1.2.5 — 中英双语界面与内置帮助 / Chinese and English UI and guide
+
+- 主窗口顶部可即时切换简体中文和英文。工作台、复核、设置、菜单、应用内确认弹窗和帮助同步更新，并记住用户选择。 / Switch instantly between Simplified Chinese and English from the top of the window. The workspace, review, settings, menus, app confirmation dialogs, and help follow the saved preference.
+- 新增六个主题的双语使用说明，从左侧「使用说明」或 F1 打开。在复核页首次打开帮助时会直接显示四角复核。 / Open the six-topic bilingual guide from **User guide** or with **F1**. Opening it for the first time while reviewing a photo shows the corner-review topic.
+
 ## 1.2.4 — 中文排版 / Typography
 
-- 中文界面优先使用 Noto Sans SC，并使用系统字体作为回退。统一标题、文件名、复核文字和等宽统计数字。
+- 中文界面优先使用 Noto Sans SC，并使用系统字体作为回退。统一标题、文件名、复核文字和等宽统计数字。 / Prefer Noto Sans SC in the Chinese interface, with system font fallbacks. Refine heading, filename, and review text and use tabular numerals for statistics.
 
 ## 1.2.3 — 标题栏与圆角 / Window chrome
 
-- 将应用名称与图标融入标题栏，保留 Windows 原生窗口按钮。用适度圆角、静态渐变和高光调整面板与输入控件。
+- 将应用名称与图标融入标题栏，保留 Windows 原生窗口按钮。用适度圆角、静态渐变和高光调整面板与输入控件。 / Integrate the logo and app name into the title bar and keep native Windows caption buttons. Refine panels and inputs with restrained corners, gradients, and highlights.
 
 ## 1.2.2 — 页码跳转 / Pagination
 
-- 支持下拉选页、输入页码回车跳转和当前页／总页数显示。浅色侧栏及静态玻璃质感延续原配色。
+- 支持下拉选页、输入页码回车跳转和当前页／总页数显示。浅色侧栏及静态玻璃质感延续原配色。 / Add a page picker, typed page numbers, Enter-to-jump, and current and total page counts. Use a lighter sidebar and static glass styling.
 
 ## 1.2.1 — 标识清晰度 / Branding
 
-- 提升窗口内应用图标的显示清晰度，调整品牌区标题。
+- 提升窗口内应用图标的显示清晰度，调整品牌区标题。 / Sharpen the in-window app icon and update the brand title.
 
 ## 1.2.0 — 困难照片与批次恢复 / Difficult captures and batch recovery
 
-- 为抖动、弱边、贴边、近拍和大角度照片补充候选，修正锐化补检前的候选排序。复核页可检查弱边、换候选框并手动确认。
-- 加入放大镜、方向键微调、旋转、撤销与重做。支持复核续接、自动通过抽查、多文件导入、批次统计和高级输出选项。
-- 记录照片相对路径、内容 SHA-256 和批次版本。并发写入或记录过期时提示刷新，检测到结果改动时要求确认覆盖。增加逐张日志、恢复待写结果、重新定位和 ZIP 备份。
-- 拍摄失败清单支持仅表头导出、过期提示及「已重裁」历史。表格占用与已保存图片状态分别提示。
+- 为抖动、弱边、贴边、近拍和大角度照片补充候选，修正锐化补检前的候选排序。复核页可检查弱边、换候选框并手动确认。 / Add proposals for motion-blurred captures, weak edges, close-ups, edge-touching targets, and steep angles. Rank candidates before the sharpening fallback. Show weak borders and let reviewers compare proposals and confirm a crop.
+- 加入放大镜、方向键微调、旋转、撤销与重做。支持复核续接、自动通过抽查、多文件导入、批次统计和高级输出选项。 / Add the corner magnifier, keyboard nudging, rotation, undo and redo. Resume a review, audit auto-accepted photos, import multiple files, view batch statistics, and configure exports.
+- 记录照片相对路径、内容 SHA-256 和批次版本。并发写入或记录过期时提示刷新，检测到结果改动时要求确认覆盖。增加逐张日志、恢复待写结果、重新定位和 ZIP 备份。 / Record relative paths, SHA-256 hashes, and batch revisions. Prompt for a refresh when records are stale and for confirmation before replacing changed output. Add per-photo journaling, pending-write recovery, relocation, and ZIP backups.
+- 拍摄失败清单支持仅表头导出、过期提示及「已重裁」历史。表格占用与已保存图片状态分别提示。 / Let users export a headers-only failure CSV and see when it is stale. Track re-cropped captures, and report a locked spreadsheet separately from saved images.
 
 ## 1.1.0 — 拍摄失败记录 / Capture failures
 
-- 增加带裁切标记的应用图标和复核界面调整。人工标记严重模糊等拍摄失败原因时归档原照片副本，并可导出 Excel 可读 CSV。
+- 增加带裁切标记的应用图标和复核界面调整。人工标记严重模糊等拍摄失败原因时归档原照片副本，并可导出 Excel 可读 CSV。 / Add a crop-mark app icon and refine the review screen. Copy manually rejected originals to an archive and export an Excel-readable failure CSV.
 
 ## 1.0.0 — 原生批次工作台 / Native batch desktop
 
-- **抖动画面裁切。** 同一批中的照片逐张定位四角。轮廓、断裂线段和必要时的增强检测帮助找回拖影中的外边界，再用未增强的图像证据验证候选。透视校正从原照片采样，保留原有拖影。
-- **批量处理与复核。** 可靠候选自动保存，疑难照片进入待复核。支持缩略图分页、筛选、四角编辑、批量确认，以及记录处理失败后继续。
-- **批次恢复与追溯。** 记录原图和结果 SHA-256、相对路径、处理选项及确认状态；支持暂停续跑、排除归档和兼容导出。人工确认状态独立记录。
-- **独立原生入口。** 默认桌面版改为 C#、.NET 10、WPF 和传统 OpenCV。旧 Python 模型和独立启动器保留用于复现。
-- **验证。** 合成运动拖影样例检查了自动保存和保留候选四角进入复核两种结果。真实会话样本、参考框来源和评估限制见 [原生版验证记录](desktop/VALIDATION.md) 与 [检测与模型说明](docs/MODEL_CARD.md)。
-
-Each capture is localized and rectified independently, including shaky screen photos with a visible outer frame. Uncertain borders go to review and the crop retains the blur captured in the source. See the [usage guide](docs/USAGE.md) for the review workflow.
+- **抖动画面裁切。** 同一批中的照片逐张定位四角。轮廓、断裂线段和必要时的增强检测帮助找回拖影中的外边界，再用未增强的图像证据验证候选。透视校正从原照片采样，保留原有拖影。 / Localize each photo independently, including shaky captures with visible outer borders. Use contours, fragmented lines, and a sharpened fallback to propose frames. Check edge evidence and correct perspective using the original photo, retaining captured blur.
+- **批量处理与复核。** 可靠候选自动保存，疑难照片进入待复核。支持缩略图分页、筛选、四角编辑、批量确认，以及记录处理失败后继续。 / Save reliable proposals automatically and send difficult photos to review. Add thumbnail pagination, filtering, corner editing, bulk confirmation, and processing-error handling.
+- **批次恢复与追溯。** 记录原图和结果 SHA-256、相对路径、处理选项及确认状态；支持暂停续跑、排除归档和兼容导出。人工确认状态独立记录。 / Record source and output hashes, relative paths, settings, and confirmation state. Add pause and resume, exclusion archives, and compatible exports with recorded manual confirmation.
+- **独立原生入口。** 默认桌面版改为 C#、.NET 10、WPF 和传统 OpenCV。旧 Python 模型和独立启动器保留用于复现。 / Ship a C#, .NET 10, WPF, and OpenCV desktop entry point. Retain the separate Python launchers and models for reproducibility.
+- **验证。** 合成运动拖影样例检查了自动保存和保留候选四角进入复核两种结果。真实会话样本、参考框来源和评估限制见 [原生版验证记录](desktop/VALIDATION.md) 与 [检测与模型说明](docs/MODEL_CARD.md)。 / Test synthetic drag blur with both automatic acceptance and proposals sent to review. See the [validation record](desktop/VALIDATION.md) and [model card](docs/MODEL_CARD.md) for capture sessions, references, and evaluation limits.
 
 ## 0.11.2 — 2026-10-31
 

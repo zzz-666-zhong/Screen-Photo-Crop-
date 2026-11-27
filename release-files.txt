@@ -77,6 +77,13 @@ desktop/Crop.Desktop/OutputSettingsWindow.cs
 desktop/Crop.Desktop/RoundedClipBorder.cs
 desktop/Crop.Desktop/ScreenCrop-Sidebar.png
 desktop/Crop.Desktop/ScreenCrop.ico
+desktop/Crop.Desktop/AppDialog.cs
+desktop/Crop.Desktop/HelpWindow.xaml
+desktop/Crop.Desktop/HelpWindow.xaml.cs
+desktop/Crop.Desktop/MainWindow.Localization.cs
+desktop/Crop.Desktop/UiText.cs
+desktop/Crop.Desktop/UiText.en.json
+desktop/Crop.Desktop/UserGuide.json
 desktop/Crop.Verify/Crop.Verify.csproj
 desktop/Crop.Verify/Program.cs
 README.legacy.md

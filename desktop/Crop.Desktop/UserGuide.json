@@ -1,0 +1,238 @@
+{
+  "zh-CN": {
+    "title": "使用说明",
+    "contentsLabel": "主题目录",
+    "topics": [
+      {
+        "id": "start",
+        "title": "快速开始",
+        "steps": [
+          {
+            "heading": "1. 导入原照片",
+            "body": "点击「新建批次」，再用「选文件夹」或「选照片」导入。也可把文件夹或多张照片拖进工作台。多文件导入请选同一磁盘上的文件。支持 JPEG、PNG、BMP、TIFF 和 WebP。"
+          },
+          {
+            "heading": "2. 设置结果和形状",
+            "body": "选择与原照片分开的结果目录。目标原本为正方形时勾选「目标图片为正方形」。首次建议保留原生裁剪分辨率，四边内切设为 0。处理子目录时勾选「包含子文件夹」。"
+          },
+          {
+            "heading": "3. 处理整批",
+            "body": "点击「开始整批处理」。结束后打开「待复核」检查疑难照片，再抽查「自动通过」。点击「打开结果」可查看输出目录。"
+          }
+        ]
+      },
+      {
+        "id": "overview",
+        "title": "总览、筛选和分页",
+        "steps": [
+          {
+            "heading": "看懂状态",
+            "body": "「自动通过」和「人工确认」已保存到裁剪成功目录。「待复核」需要人工检查，有候选时可查看预裁剪。「拍摄失败」是人工标记的照片质量问题。「处理错误」表示读图、写入或其他程序操作遇到问题。"
+          },
+          {
+            "heading": "找到目标照片",
+            "body": "点统计卡片或下拉框可以筛选状态，搜索框可按文件名找图。底部显示当前页和总页数，可下拉选页，或输入页码后按 Enter 或点击「跳转」。点击缩略图进入复核。"
+          },
+          {
+            "heading": "批量确认",
+            "body": "可以用「选择本页」勾选本页具备有效候选的照片。核对勾选项后点击「确认所选」，确认框会显示数量，完成后可查看成功、跳过和失败的明细。"
+          }
+        ]
+      },
+      {
+        "id": "review",
+        "title": "抖动照片与四角复核",
+        "steps": [
+          {
+            "heading": "判断拖影中的真实外边界",
+            "body": "手持抖动产生轻度拖影时，先看屏幕内目标画面的完整外缘，再检查沿拖影方向的角点。局部有重影时，以目标原本的边界和留白为准。透视校正会保留原照片中的拖影。"
+          },
+          {
+            "heading": "选择候选并调整角点",
+            "body": "有多个建议框时可点「换候选框」。滚轮放大，中键拖动平移。拖动角点，或在「角点工具」里重选当前角点、重选四角和切换放大镜。暂无建议框时，可在原图上手动选四角。"
+          },
+          {
+            "heading": "用快捷键微调",
+            "body": "画布获得焦点后，方向键移动所选角点 1 个原图像素，Shift 加方向键移动 10 个像素，Ctrl+Tab 切换角点。Ctrl+Z 撤销，Ctrl+Y 重做，F 适应窗口。「角点工具」还可将成图旋转 90°。"
+          },
+          {
+            "heading": "核对预览后保存",
+            "body": "查看右侧预览，确认画面完整后，点击「确认保存并下一张」或在画布上按 Enter。可用「上一张」「下一张」查看复核队列。关键角点被强拖影、反光遮挡或拍出画面时，可标记拍摄失败。"
+          }
+        ]
+      },
+      {
+        "id": "failures",
+        "title": "拍摄失败与表格",
+        "steps": [
+          {
+            "heading": "标记需要重拍的照片",
+            "body": "在复核页选择「拍摄失败原因」，例如严重模糊、反光遮挡、目标缺失或未拍完整，再点「标记拍摄失败并下一张」。程序将原照片副本放入结果目录的「拍摄失败」子目录。"
+          },
+          {
+            "heading": "导出当前重拍清单",
+            "body": "在总览点「导出拍摄失败表」，结果目录会生成拍摄失败记录.csv，可用 Excel 打开。没有待重拍项时也可导出只有表头的文件。旧表需要更新时，按钮会提示「更新拍摄失败表」。"
+          },
+          {
+            "heading": "查历史和处理表格占用",
+            "body": "筛选「拍摄失败」可打开照片重新裁切。「批次工具 → 导出拍摄失败历史」可查看「已重裁」记录。表格被 Excel 占用时，关闭对应表格，再用「批次工具 → 更新批次报表」。"
+          }
+        ]
+      },
+      {
+        "id": "recovery",
+        "title": "暂停、恢复与备份",
+        "steps": [
+          {
+            "heading": "暂停并从原批次继续",
+            "body": "点击「暂停」后，程序会完成当前照片并记录进度。下次点「打开已有批次」，选择含 batch_session.json 的结果目录，再点「继续处理」。要回到上次复核位置，可点「继续复核」。"
+          },
+          {
+            "heading": "刷新或重试",
+            "body": "如果提示批次已在另一窗口更新，先用「批次工具 → 刷新批次」再继续。文件缺失、被占用或存储空间不足时，按提示处理后点「重试处理错误」。结果文件有外部改动时，先检查内容再确认是否覆盖。"
+          },
+          {
+            "heading": "搬家和备份",
+            "body": "移动目录时保留完整批次文件，再用「批次工具 → 重新定位批次」选择新位置并校验。「导出批次备份 ZIP」会打包批次记录、原照片和结果，便于备份或搬家。"
+          }
+        ]
+      },
+      {
+        "id": "output",
+        "title": "导出设置与文件位置",
+        "steps": [
+          {
+            "heading": "格式、尺寸和命名",
+            "body": "新建批次前打开「高级输出与检测设置」，可调 PNG 压缩、JPEG 质量、自定义长边及命名模板。PNG 可选保留 16 位输入的位深。结果可保留原子目录，相对路径和哈希用于区分并校验照片。"
+          },
+          {
+            "heading": "定位文件",
+            "body": "「裁剪成功」存放已保存的裁剪图。「待复核」存放可用候选的预裁剪。「拍摄失败」保留失败照片副本。crop_report.csv 列出全批状态，crop_labels.json 中的 confirmed 字段标识人工确认。"
+          },
+          {
+            "heading": "处理难以定位的照片",
+            "body": "针对贴边、近拍或大角度照片，可在创建批次前选择「扩展搜索」，然后检查进入复核的候选。要比较不同检测或输出设置，使用新的结果目录建立另一批次。"
+          }
+        ]
+      }
+    ]
+  },
+  "en-US": {
+    "title": "User guide",
+    "contentsLabel": "Guide topics",
+    "topics": [
+      {
+        "id": "start",
+        "title": "Quick start",
+        "steps": [
+          {
+            "heading": "1. Import photos",
+            "body": "Click New batch, then Folder or Photos. You can also drag in a folder or multiple photos. Select files on the same drive for a single batch. JPEG, PNG, BMP, TIFF, and WebP are supported."
+          },
+          {
+            "heading": "2. Set the output and target shape",
+            "body": "Choose a result folder separate from the originals. Enable the square target option when the photographed content is square. For your first batch, keep the native crop resolution and set the inset to 0. Enable Include subfolders to process nested folders."
+          },
+          {
+            "heading": "3. Run the batch",
+            "body": "Click Start batch. When it finishes, inspect Needs review and spot-check auto-accepted crops. Open results opens the output folder."
+          }
+        ]
+      },
+      {
+        "id": "overview",
+        "title": "Filters and pages",
+        "steps": [
+          {
+            "heading": "Read the status labels",
+            "body": "Automatically accepted and manually confirmed crops are saved in 裁剪成功. Needs review requires a human check and may include a provisional crop. Capture failed is a manual decision about photo quality. Errors indicates a file or application error."
+          },
+          {
+            "heading": "Find a photo",
+            "body": "Use a summary card or the status dropdown to filter, or search by filename. The footer shows the current page and page count. Choose a page from the dropdown or type a number and press Enter or click Jump. Click a thumbnail to review it."
+          },
+          {
+            "heading": "Confirm multiple crops",
+            "body": "Select page checks the eligible proposals on that page. Inspect the selected crops, then click Confirm selected. The confirmation dialog gives the count. The results list shows saved, skipped, and failed items."
+          }
+        ]
+      },
+      {
+        "id": "review",
+        "title": "Blur and corner review",
+        "steps": [
+          {
+            "heading": "Find the true outer boundary",
+            "body": "For handheld photos with mild motion blur, look for the complete edge of the target on the screen. Check the corners along the direction of motion and keep any margins that belong to the target. Perspective correction preserves the captured blur."
+          },
+          {
+            "heading": "Pick a proposal and adjust its corners",
+            "body": "Use Next frame to cycle through proposals. Scroll to zoom, middle-drag to pan, and drag any corner to adjust it. The Corners menu let you replace one corner, reselect all four, or toggle the magnifier. If there is no proposal, pick four corners on the source image."
+          },
+          {
+            "heading": "Fine-tune with the keyboard",
+            "body": "With the image canvas focused, an arrow key moves the selected corner by 1 source pixel, and Shift plus an arrow moves it by 10. Ctrl+Tab selects the next corner. Ctrl+Z undoes, Ctrl+Y redoes, and F fits the view. The Corners menu can rotate the crop 90°."
+          },
+          {
+            "heading": "Inspect the preview and save",
+            "body": "Check the preview on the right, then click Save and next or press Enter on the canvas. Use Previous and Next to move through the queue. Mark a capture as failed when strong blur, glare, or missing content hides essential corners."
+          }
+        ]
+      },
+      {
+        "id": "failures",
+        "title": "Capture failures and CSV",
+        "steps": [
+          {
+            "heading": "Flag photos for a retake",
+            "body": "During review, select a reason such as severe blur, glare, missing target, or cut-off content. Click Mark failed and next. A copy of the original goes in the 拍摄失败 subfolder of the result folder."
+          },
+          {
+            "heading": "Export the current retake list",
+            "body": "Click Export failure CSV in the overview. The result folder contains 拍摄失败记录.csv, which opens in Excel. An empty list can be exported with just the headers. The button changes to Update failure CSV when an existing CSV needs an update."
+          },
+          {
+            "heading": "Review history or update a locked CSV",
+            "body": "Filter by Capture failed to revisit and re-crop a photo. Export capture failure history in Batch tools includes re-cropped entries. If Excel is holding a report, close the report and choose Update batch reports in Batch tools."
+          }
+        ]
+      },
+      {
+        "id": "recovery",
+        "title": "Resume and back up",
+        "steps": [
+          {
+            "heading": "Pause and resume the same batch",
+            "body": "Pause finishes the current photo and records progress. Next time, use Open batch, select the result folder containing batch_session.json, and click Continue batch. Resume review returns to the saved review position."
+          },
+          {
+            "heading": "Refresh or retry",
+            "body": "If another window updated the batch, choose Refresh batch in Batch tools before proceeding. Resolve missing files, file locks, or storage issues, then click Retry errors. When an output has changed externally, inspect it before accepting an overwrite."
+          },
+          {
+            "heading": "Move or back up a batch",
+            "body": "Keep the batch files together when moving them. Use Relocate batch in Batch tools to choose and verify the new locations. Export batch backup ZIP includes the batch records, originals, and outputs."
+          }
+        ]
+      },
+      {
+        "id": "output",
+        "title": "Export settings and files",
+        "steps": [
+          {
+            "heading": "Format, size, and naming",
+            "body": "Before starting a batch, open Advanced settings to adjust PNG compression, JPEG quality, the output long edge, and the naming template. PNG can retain 16-bit source depth. The app can preserve subfolders and uses relative paths and hashes to identify and verify files."
+          },
+          {
+            "heading": "Locate the output files",
+            "body": "裁剪成功 contains saved crops. 待复核 contains provisional crops where available. 拍摄失败 contains copies of photos marked as failed. crop_report.csv lists the full batch status, and the confirmed field in crop_labels.json identifies manually confirmed crops."
+          },
+          {
+            "heading": "Handle difficult borders",
+            "body": "For photo targets near the image edge, close-ups, or steep angles, choose Extended search before creating the batch, then inspect the proposals sent to review. Use a new batch and result folder to compare different detection or export settings."
+          }
+        ]
+      }
+    ]
+  }
+}
